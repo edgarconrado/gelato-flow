@@ -27,6 +27,8 @@
       "typedRoutes": true
     },
     "extra": {
+      "supabaseUrl": "process.env.EXPO_PUBLIC_SUPABASE_URL,",
+      "supabaseAnonKey": "process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY",
       "router": {},
       "eas": {
         "projectId": "34e3d317-1a87-43a0-a9ef-1c4ec47d36d5"
