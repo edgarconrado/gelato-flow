@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Paletería App",
+    "slug": "paleteria-app",
+    "version": "1.0.0",
+    "scheme": "paleteria",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "mx.paleteria.app"
+    },
+    "android": {
+      "package": "mx.paleteria.app",
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

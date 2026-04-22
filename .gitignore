@@ -1,0 +1,47 @@
+# ─── Dependencias ────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ─── Expo ────────────────────────────────────────────────────
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# ─── Variables de entorno (NUNCA subir al repo) ───────────────
+.env
+.env.local
+.env.development
+.env.production
+
+# ─── iOS ─────────────────────────────────────────────────────
+ios/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# ─── Android ─────────────────────────────────────────────────
+android/
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+
+# ─── TypeScript ──────────────────────────────────────────────
+*.tsbuildinfo
+
+# ─── Logs ────────────────────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── Sistema operativo ───────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Editores ────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
