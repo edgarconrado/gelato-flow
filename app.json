@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "Paletería App",
-    "slug": "paleteria-app",
-    "version": "1.0.0",
-    "scheme": "paleteria",
+    "name": "GelatoFlow App",
+    "slug": "gelato-flow-app",
+    "version": "1.0.0r1",
+    "scheme": "gelato",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "mx.paleteria.app"
+      "bundleIdentifier": "mx.gelato.app"
     },
     "android": {
-      "package": "mx.paleteria.app",
+      "package": "mx.gelato.app",
       "edgeToEdgeEnabled": true
     },
     "web": {
@@ -25,6 +25,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "34e3d317-1a87-43a0-a9ef-1c4ec47d36d5"
+      }
     }
   }
 }
