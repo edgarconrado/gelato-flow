@@ -38,6 +38,7 @@
     "@babel/core": "^7.25.0",
     "@types/react": "~19.1.0",
     "babel-preset-expo": "~13.0.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "babel-plugin-react-compiler": "19.0.0-beta-ebf51a3-20250411"
   }
 }
