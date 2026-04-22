@@ -1,9 +1,6 @@
-// app/(tabs)/index.tsx — POS con categorías optimizadas para iPad
+// app/(tabs)/index.tsx — POS · Ink & Mint design
 import { useState } from 'react'
-import {
-  View, Text, FlatList, TouchableOpacity,
-  StyleSheet,
-} from 'react-native'
+import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -11,10 +8,9 @@ import { useCategories, useProducts } from '../../hooks/useData'
 import { useCartStore } from '../../store'
 import { useAuth } from '../../context/AuthContext'
 import { Product, Category } from '../../lib/supabase'
-import { colors } from '../../constants/theme'
+import { colors, radius, shadow } from '../../constants/theme'
 
-// Categoría virtual "Todos" para el primer chip
-const ALL_CAT = { id: '__all__', name: 'Todos', emoji: '★', sort_order: 0, store_id: '' }
+const ALL_CAT = { id: '__all__', name: 'Todos', emoji: '✦', sort_order: 0, store_id: '' }
 
 export default function POSScreen() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
@@ -28,88 +24,87 @@ export default function POSScreen() {
   const allCats = [ALL_CAT, ...categories] as (typeof ALL_CAT | Category)[]
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={s.safe}>
 
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <View style={styles.header}>
+      {/* Header */}
+      <View style={s.header}>
         <View>
-          <Text style={styles.storeName}>{profile?.store?.name ?? 'Mi Tienda'}</Text>
-          <Text style={styles.headerSub}>Punto de Venta</Text>
+          <Text style={s.storeName}>{profile?.store?.name ?? 'Gelato Flow'}</Text>
+          <Text style={s.storeSub}>Punto de venta</Text>
         </View>
-        <TouchableOpacity style={styles.cartBtn} onPress={() => router.push('/pos/checkout')}>
-          <Ionicons name="cart" size={24} color="#fff" />
+        <TouchableOpacity style={s.cartBtn} onPress={() => router.push('/pos/checkout')} activeOpacity={0.8}>
+          <Ionicons name="bag-outline" size={18} color={colors.primary} />
           {itemCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{itemCount}</Text>
-            </View>
+            <>
+              <Text style={s.cartCount}>{itemCount}</Text>
+              <View style={s.cartDot} />
+            </>
           )}
         </TouchableOpacity>
       </View>
 
-      {/* ── Barra de categorías ─────────────────────────────────── */}
-      <View style={styles.categoryWrapper}>
-        <FlatList
-          horizontal
-          data={allCats}
-          keyExtractor={c => c.id}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryBar}
-          renderItem={({ item }) => {
-            const isAll = item.id === '__all__'
-            const isActive = isAll
-              ? selectedCategoryId === null
-              : selectedCategoryId === item.id
+      {/* Category pills */}
+      {!loadingCats && (
+        <View style={s.pillWrapper}>
+          <FlatList
+            horizontal
+            data={allCats}
+            keyExtractor={c => c.id}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.pillBar}
+            renderItem={({ item }) => {
+              const isAll = item.id === '__all__'
+              const isActive = isAll ? selectedCategoryId === null : selectedCategoryId === item.id
+              return (
+                <TouchableOpacity
+                  style={[s.pill, isActive && s.pillActive]}
+                  onPress={() => setSelectedCategoryId(isAll ? null : item.id)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[s.pillText, isActive && s.pillTextActive]}>
+                    {item.name}
+                  </Text>
+                </TouchableOpacity>
+              )
+            }}
+          />
+        </View>
+      )}
 
-            return (
-              <TouchableOpacity
-                style={[styles.catChip, isActive && styles.catChipActive]}
-                onPress={() => setSelectedCategoryId(isAll ? null : item.id)}
-                activeOpacity={0.7}
-              >
-                {/* Texto del emoji — más grande y sin renderizado de imagen */}
-                <Text style={[styles.catEmoji, isActive && styles.catEmojiActive]}>
-                  {item.emoji}
-                </Text>
-                <Text style={[styles.catLabel, isActive && styles.catLabelActive]}>
-                  {item.name}
-                </Text>
-              </TouchableOpacity>
-            )
-          }}
-        />
-      </View>
-
-      {/* ── Grid de productos ───────────────────────────────────── */}
+      {/* Product grid */}
       {loadingProducts || loadingCats ? (
-        <View style={styles.center}>
-          <Text style={styles.loadingText}>Cargando productos...</Text>
+        <View style={s.center}>
+          <Text style={s.loadingText}>Cargando productos…</Text>
         </View>
       ) : (
         <FlatList
           data={products}
           numColumns={2}
           keyExtractor={p => p.id}
-          contentContainerStyle={styles.grid}
+          contentContainerStyle={s.grid}
           columnWrapperStyle={{ gap: 12 }}
           renderItem={({ item }) => (
             <ProductCard product={item} onPress={() => addItem(item)} />
           )}
           ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.emptyText}>Sin productos en esta categoría</Text>
+            <View style={s.center}>
+              <Text style={s.loadingText}>Sin productos en esta categoría</Text>
             </View>
           }
         />
       )}
 
-      {/* ── Barra de total ──────────────────────────────────────── */}
+      {/* Total bar */}
       {itemCount > 0 && (
-        <TouchableOpacity style={styles.totalBar} onPress={() => router.push('/pos/checkout')}>
-          <Text style={styles.totalBarLabel}>
-            {itemCount} producto{itemCount !== 1 ? 's' : ''}
-          </Text>
-          <Text style={styles.totalBarAmount}>Total: ${total().toFixed(2)}</Text>
-          <Ionicons name="arrow-forward" size={20} color="#fff" />
+        <TouchableOpacity style={s.totalBar} onPress={() => router.push('/pos/checkout')} activeOpacity={0.9}>
+          <View>
+            <Text style={s.totalBarSub}>{itemCount} producto{itemCount !== 1 ? 's' : ''}</Text>
+            <Text style={s.totalBarAmount}>${total().toFixed(2)}</Text>
+          </View>
+          <View style={s.payBtn}>
+            <Text style={s.payBtnText}>Cobrar</Text>
+            <Ionicons name="arrow-forward" size={14} color={colors.ink} />
+          </View>
         </TouchableOpacity>
       )}
 
@@ -117,153 +112,114 @@ export default function POSScreen() {
   )
 }
 
-// ─── Tarjeta de producto ──────────────────────────────────────
-
 function ProductCard({ product, onPress }: { product: Product; onPress: () => void }) {
-  const inCart = useCartStore(s => s.items.find(i => i.product.id === product.id))
+  const inCart = useCartStore(st => st.items.find(i => i.product.id === product.id))
+  const emoji = product.category?.emoji ?? '🍽️'
 
   return (
     <TouchableOpacity
-      style={[styles.card, !!inCart && styles.cardActive]}
+      style={[s.card, !!inCart && s.cardActive]}
       onPress={onPress}
-      activeOpacity={0.75}
+      activeOpacity={0.8}
     >
-      <Text style={styles.cardEmoji}>{product.category?.emoji ?? '🍽️'}</Text>
-      <Text style={styles.cardName} numberOfLines={2}>{product.name}</Text>
-      <Text style={styles.cardPrice}>${product.price.toFixed(2)}</Text>
-
-      {/* Badge de cantidad en carrito */}
       {inCart && (
-        <View style={styles.qtyBadge}>
-          <Text style={styles.qtyText}>{inCart.quantity}</Text>
+        <View style={s.qtyBadge}>
+          <Text style={s.qtyText}>{inCart.quantity}</Text>
         </View>
       )}
-
-      {/* Aviso de stock bajo */}
+      <Text style={s.cardEmoji}>{emoji}</Text>
+      <Text style={s.cardName} numberOfLines={2}>{product.name}</Text>
+      <Text style={s.cardPrice}>${product.price.toFixed(2)}</Text>
       {product.stock <= 5 && product.stock > 0 && (
-        <Text style={styles.lowStock}>Solo {product.stock} disponibles</Text>
+        <Text style={s.lowStock}>Solo {product.stock}</Text>
       )}
     </TouchableOpacity>
   )
 }
 
-// ─── Estilos ──────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
 
-  // Header
   header: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.ink,
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    ...shadow.header,
   },
-  storeName: { fontSize: 18, fontWeight: '800', color: '#fff' },
-  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
+  storeName: { fontSize: 18, fontWeight: '600', color: '#fff', letterSpacing: -0.3 },
+  storeSub: { fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 2 },
   cartBtn: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    padding: 10, borderRadius: 14,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: radius.pill,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
   },
-  badge: {
-    position: 'absolute', top: -4, right: -4,
-    backgroundColor: colors.accent,
-    borderRadius: 10, minWidth: 20, height: 20,
-    alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-
-  // Categorías — contenedor con fondo y sombra suave
-  categoryWrapper: {
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 10,
-  },
-  categoryBar: {
-    paddingHorizontal: 12,
-    gap: 8,
-    alignItems: 'center',
-  },
-  catChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.background,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: colors.border,
-    // Tamaño mínimo para que sea fácil de tocar en iPad
-    minHeight: 40,
-  },
-  catChipActive: {
+  cartCount: { fontSize: 13, fontWeight: '600', color: colors.primary },
+  cartDot: {
+    width: 6, height: 6, borderRadius: 3,
     backgroundColor: colors.primary,
-    borderColor: colors.primary,
   },
-  // Emoji como texto grande — evita el renderizado pixelado de iOS
-  catEmoji: {
-    fontSize: 18,
-    lineHeight: 22,
-    // En iOS los emojis a veces se recortan si lineHeight < fontSize
-  },
-  catEmojiActive: {
-    // Sin cambio de color — los emojis no cambian con tintColor
-  },
-  catLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-    letterSpacing: 0.1,
-  },
-  catLabelActive: { color: '#fff' },
 
-  // Grid de productos
-  grid: { padding: 14, gap: 12 },
-  card: {
-    flex: 1,
+  pillWrapper: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    position: 'relative',
-    minHeight: 120,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.border,
   },
-  cardActive: { borderColor: colors.primary },
-  cardEmoji: { fontSize: 36, marginBottom: 8 },
+  pillBar: { paddingHorizontal: 16, paddingVertical: 12, gap: 8, alignItems: 'center' },
+  pill: {
+    paddingHorizontal: 16, paddingVertical: 7,
+    borderRadius: radius.pill,
+    borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  pillActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  pillText: { fontSize: 13, fontWeight: '500', color: colors.inkMid },
+  pillTextActive: { color: '#fff' },
+
+  grid: { padding: 16, gap: 12 },
+  card: {
+    flex: 1, backgroundColor: colors.surface,
+    borderRadius: radius.lg, padding: 16,
+    borderWidth: 1, borderColor: colors.border,
+    position: 'relative', minHeight: 120,
+    ...shadow.sm,
+  },
+  cardActive: { borderColor: colors.primary, borderWidth: 1.5 },
+  cardEmoji: { fontSize: 32, marginBottom: 10 },
   cardName: {
-    fontSize: 14, fontWeight: '600',
-    color: colors.text, marginBottom: 6,
-    lineHeight: 18,
+    fontSize: 13, fontWeight: '500',
+    color: colors.inkMid, marginBottom: 6, lineHeight: 18,
   },
-  cardPrice: { fontSize: 20, fontWeight: '800', color: colors.primary },
+  cardPrice: { fontSize: 18, fontWeight: '600', color: colors.ink, letterSpacing: -0.3 },
   qtyBadge: {
     position: 'absolute', top: 10, right: 10,
     backgroundColor: colors.primary,
-    borderRadius: 13, width: 26, height: 26,
-    alignItems: 'center', justifyContent: 'center',
+    borderRadius: radius.pill, minWidth: 22, height: 22,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
   },
-  qtyText: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  lowStock: { fontSize: 11, color: colors.accent, marginTop: 4, fontWeight: '600' },
+  qtyText: { color: '#fff', fontWeight: '700', fontSize: 11 },
+  lowStock: { fontSize: 10, color: colors.accent, marginTop: 4, fontWeight: '500' },
 
-  // Barra total
   totalBar: {
-    backgroundColor: colors.primary,
-    margin: 14, borderRadius: 16,
+    backgroundColor: colors.ink,
+    margin: 16, borderRadius: radius.xl,
     paddingVertical: 16, paddingHorizontal: 20,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    shadowColor: colors.primary, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
+    ...shadow.header,
   },
-  totalBarLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '600' },
-  totalBarAmount: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  totalBarSub: { color: 'rgba(255,255,255,0.45)', fontSize: 11, marginBottom: 2 },
+  totalBarAmount: { color: '#fff', fontSize: 22, fontWeight: '600', letterSpacing: -0.5 },
+  payBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20, paddingVertical: 12,
+    borderRadius: radius.lg,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+  },
+  payBtnText: { color: colors.ink, fontSize: 14, fontWeight: '700' },
 
-  // Estados vacíos
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  loadingText: { color: colors.muted, fontSize: 15 },
-  emptyText: { color: colors.muted, fontSize: 15 },
+  loadingText: { color: colors.inkMuted, fontSize: 14 },
 })

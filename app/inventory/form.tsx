@@ -1,15 +1,16 @@
-// app/inventory/form.tsx — Crear / Editar Producto con categorías dinámicas
+// app/inventory/form.tsx — Ink & Mint design
 import { useState, useEffect } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  SafeAreaView, ScrollView, Alert, ActivityIndicator,
+  ScrollView, Alert, ActivityIndicator,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { supabase, Product, Category } from '../../lib/supabase'
+import { supabase, Product } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useCategories } from '../../hooks/useData'
-import { colors } from '../../constants/theme'
+import { colors, radius, shadow } from '../../constants/theme'
 
 export default function ProductFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>()
@@ -25,27 +26,20 @@ export default function ProductFormScreen() {
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(isEditing)
 
-  // Cargar producto existente al editar
   useEffect(() => {
     if (!id) return
-    supabase
-      .from('products')
-      .select('*')
-      .eq('id', id)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          const p = data as Product
-          setName(p.name)
-          setCategoryId(p.category_id ?? null)
-          setPrice(p.price.toString())
-          setStock(p.stock.toString())
-        }
-        setFetching(false)
-      })
+    supabase.from('products').select('*').eq('id', id).single().then(({ data }) => {
+      if (data) {
+        const p = data as Product
+        setName(p.name)
+        setCategoryId(p.category_id ?? null)
+        setPrice(p.price.toString())
+        setStock(p.stock.toString())
+      }
+      setFetching(false)
+    })
   }, [id])
 
-  // Seleccionar primera categoría por defecto cuando carguen
   useEffect(() => {
     if (!isEditing && categories.length > 0 && !categoryId) {
       setCategoryId(categories[0].id)
@@ -61,18 +55,10 @@ export default function ProductFormScreen() {
     if (isNaN(stockNum) || stockNum < 0) return Alert.alert('Stock inválido')
 
     setLoading(true)
-    const payload = {
-      name: name.trim(),
-      category_id: categoryId,
-      price: priceNum,
-      stock: stockNum,
-      store_id: profile!.store_id,
-    }
-
+    const payload = { name: name.trim(), category_id: categoryId, price: priceNum, stock: stockNum, store_id: profile!.store_id }
     const { error } = isEditing
       ? await supabase.from('products').update(payload).eq('id', id)
       : await supabase.from('products').insert(payload)
-
     setLoading(false)
     if (error) Alert.alert('Error', error.message)
     else router.back()
@@ -80,58 +66,50 @@ export default function ProductFormScreen() {
 
   if (fetching || loadingCats) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={s.safe}>
         <ActivityIndicator color={colors.primary} style={{ flex: 1 }} />
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.toolbar}>
+    <SafeAreaView style={s.safe}>
+      <View style={s.toolbar}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="close" size={24} color={colors.text} />
+          <Ionicons name="close" size={22} color='rgba(255,255,255,0.7)' />
         </TouchableOpacity>
-        <Text style={styles.toolbarTitle}>
-          {isEditing ? 'Editar producto' : 'Nuevo producto'}
-        </Text>
-        <View style={{ width: 24 }} />
+        <Text style={s.toolbarTitle}>{isEditing ? 'Editar producto' : 'Nuevo producto'}</Text>
+        <View style={{ width: 22 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView contentContainerStyle={s.body}>
 
-        {/* Nombre */}
-        <Text style={styles.label}>Nombre del producto</Text>
+        <Text style={s.label}>Nombre</Text>
         <TextInput
-          style={styles.input}
+          style={s.input}
           value={name}
           onChangeText={setName}
           placeholder="Ej: Paleta de mango con chile"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={colors.inkMuted}
         />
 
-        {/* Categoría dinámica */}
-        <Text style={styles.label}>Categoría</Text>
+        <Text style={s.label}>Categoría</Text>
         {categories.length === 0 ? (
-          <View style={styles.noCatBox}>
-            <Text style={styles.noCatText}>
-              No hay categorías. Crea una desde Inventario → Categorías.
-            </Text>
+          <View style={s.noCatBox}>
+            <Text style={s.noCatText}>Crea categorías desde Inventario → pricetags</Text>
           </View>
         ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 10, paddingVertical: 4 }}
-          >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
             {categories.map(cat => (
               <TouchableOpacity
                 key={cat.id}
-                style={[styles.catBtn, categoryId === cat.id && styles.catBtnActive]}
+                style={[s.catChip, categoryId === cat.id && s.catChipActive]}
                 onPress={() => setCategoryId(cat.id)}
+                activeOpacity={0.8}
               >
-                <Text style={styles.catEmoji}>{cat.emoji}</Text>
-                <Text style={[styles.catLabel, categoryId === cat.id && styles.catLabelActive]}>
+                <Text style={{ fontSize: 18 }}>{cat.emoji}</Text>
+                <Text style={[s.catChipText, categoryId === cat.id && s.catChipTextActive]}>
                   {cat.name}
                 </Text>
               </TouchableOpacity>
@@ -139,79 +117,76 @@ export default function ProductFormScreen() {
           </ScrollView>
         )}
 
-        {/* Precio */}
-        <Text style={styles.label}>Precio (MXN)</Text>
+        <Text style={s.label}>Precio (MXN)</Text>
         <TextInput
-          style={styles.input}
+          style={s.input}
           value={price}
           onChangeText={setPrice}
           keyboardType="decimal-pad"
           placeholder="0.00"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={colors.inkMuted}
         />
 
-        {/* Stock */}
-        <Text style={styles.label}>Stock disponible</Text>
+        <Text style={s.label}>Stock disponible</Text>
         <TextInput
-          style={styles.input}
+          style={s.input}
           value={stock}
           onChangeText={setStock}
           keyboardType="number-pad"
           placeholder="0"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={colors.inkMuted}
         />
 
         <TouchableOpacity
-          style={[styles.saveBtn, loading && styles.saveBtnDisabled]}
+          style={[s.saveBtn, loading && { opacity: 0.6 }]}
           onPress={handleSave}
           disabled={loading}
+          activeOpacity={0.85}
         >
           {loading
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.saveBtnText}>
-              {isEditing ? 'Guardar cambios' : 'Crear producto'}
-            </Text>
+            ? <ActivityIndicator color={colors.ink} />
+            : <Text style={s.saveBtnText}>{isEditing ? 'Guardar cambios' : 'Crear producto'}</Text>
           }
         </TouchableOpacity>
+
       </ScrollView>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   toolbar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 14,
-    borderBottomWidth: 1, borderColor: colors.border,
+    paddingHorizontal: 20, paddingVertical: 16,
+    backgroundColor: colors.ink,
+  },
+  toolbarTitle: { fontSize: 17, fontWeight: '600', color: '#fff', letterSpacing: -0.3 },
+  body: { padding: 24, gap: 6 },
+  label: { fontSize: 12, fontWeight: '500', color: colors.inkMuted, marginTop: 16, letterSpacing: 0.04 },
+  input: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+    paddingHorizontal: 16, paddingVertical: 14,
+    fontSize: 15, color: colors.ink, backgroundColor: colors.surface,
+  },
+  catChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  toolbarTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
-  body: { padding: 20, gap: 8 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.muted, marginTop: 12 },
-  input: {
-    borderWidth: 1.5, borderColor: colors.border, borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 14,
-    fontSize: 16, color: colors.text, backgroundColor: colors.surface,
-  },
-  catBtn: {
-    alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10,
-    borderRadius: 12, borderWidth: 1.5, borderColor: colors.border,
-    backgroundColor: colors.surface, gap: 4,
-  },
-  catBtnActive: { borderColor: colors.primary, backgroundColor: `${colors.primary}15` },
-  catEmoji: { fontSize: 22 },
-  catLabel: { fontSize: 12, fontWeight: '600', color: colors.text },
-  catLabelActive: { color: colors.primary },
+  catChipActive: { borderColor: colors.ink, backgroundColor: colors.ink },
+  catChipText: { fontSize: 13, fontWeight: '500', color: colors.inkMid },
+  catChipTextActive: { color: '#fff' },
   noCatBox: {
-    padding: 16, borderRadius: 12,
-    backgroundColor: `${colors.accent}15`, borderWidth: 1, borderColor: colors.accent,
+    padding: 16, borderRadius: radius.md,
+    backgroundColor: `${colors.accent}10`,
+    borderWidth: 1, borderColor: `${colors.accent}30`,
   },
   noCatText: { color: colors.accent, fontSize: 13, textAlign: 'center' },
   saveBtn: {
-    backgroundColor: colors.primary, borderRadius: 14,
-    paddingVertical: 18, alignItems: 'center', marginTop: 24,
+    backgroundColor: colors.primary, borderRadius: radius.md,
+    paddingVertical: 17, alignItems: 'center', marginTop: 28,
   },
-  saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  saveBtnText: { color: colors.ink, fontSize: 15, fontWeight: '700' },
 })

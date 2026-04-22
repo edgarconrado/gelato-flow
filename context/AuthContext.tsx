@@ -1,11 +1,7 @@
 // context/AuthContext.tsx
 import {
-    createContext,
-    useContext,
-    useEffect,
-    useState,
-    useCallback,
-    ReactNode,
+    createContext, useContext, useEffect,
+    useState, useCallback, ReactNode,
 } from 'react'
 import { Session } from '@supabase/supabase-js'
 import { supabase, Profile } from '../lib/supabase'
@@ -27,24 +23,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true)
 
     const fetchProfile = useCallback(async (userId: string) => {
-        // Usamos .limit(1).maybeSingle() en lugar de .single() para evitar el error
-        // "Cannot coerce to a single JSON object" que ocurre cuando hay perfiles
-        // duplicados (el trigger se ejecutó más de una vez).
-        // maybeSingle() devuelve null si no hay resultado, sin lanzar error.
         const { data, error } = await supabase
             .from('profiles')
             .select(`
-        id,
-        email,
-        full_name,
-        role,
-        store_id,
-        store:stores (
-          id,
-          name,
-          address,
-          phone
-        )
+        id, email, full_name, role, store_id,
+        store:stores (id, name, address, phone)
       `)
             .eq('id', userId)
             .order('created_at', { ascending: true })
@@ -55,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.error('[AuthContext] Error al cargar perfil:', error.message)
             setProfile(null)
         } else if (!data) {
-            console.warn('[AuthContext] No se encontró perfil para userId:', userId)
+            console.warn('[AuthContext] Sin perfil para userId:', userId)
             setProfile(null)
         } else {
             setProfile(data as Profile)
@@ -63,13 +46,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [])
 
     const refreshProfile = useCallback(async () => {
-        if (session?.user?.id) {
-            await fetchProfile(session.user.id)
-        }
+        if (session?.user?.id) await fetchProfile(session.user.id)
     }, [session, fetchProfile])
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        // Recuperar sesión guardada en AsyncStorage.
+        // Si el refresh token expiró o fue revocado, limpiamos y mandamos al login.
+        supabase.auth.getSession().then(({ data: { session }, error }) => {
+            if (error) {
+                // "Refresh Token Not Found" u otro error de token inválido
+                console.warn('[AuthContext] Token inválido, limpiando sesión:', error.message)
+                supabase.auth.signOut()
+                setSession(null)
+                setProfile(null)
+                setLoading(false)
+                return
+            }
             setSession(session)
             if (session?.user) {
                 fetchProfile(session.user.id).finally(() => setLoading(false))
@@ -79,7 +71,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (_event, session) => {
+            async (event, session) => {
+                // Si el token se intentó refrescar pero falló, cerrar sesión
+                if (event === 'SIGNED_OUT' || (!session && event === 'TOKEN_REFRESHED')) {
+                    setSession(null)
+                    setProfile(null)
+                    return
+                }
                 setSession(session)
                 if (session?.user) {
                     await fetchProfile(session.user.id)

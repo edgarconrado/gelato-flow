@@ -1,218 +1,196 @@
-// app/inventory/form.tsx — Crear / Editar Producto con categorías dinámicas
-import { useState, useEffect } from 'react'
+// app/pos/checkout.tsx — Modal de cobro · Ink & Mint design
+import { useState } from 'react'
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator,
+  View, Text, FlatList, TouchableOpacity,
+  StyleSheet, Alert, ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { supabase, Product, Category } from '../../lib/supabase'
+import { useCartStore } from '../../store'
 import { useAuth } from '../../context/AuthContext'
-import { useCategories } from '../../hooks/useData'
-import { colors } from '../../constants/theme'
+import { PaymentMethod } from '../../lib/supabase'
+import { colors, radius, shadow } from '../../constants/theme'
 
-export default function ProductFormScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>()
-  const isEditing = !!id
+const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: string }[] = [
+  { value: 'cash', label: 'Efectivo', icon: '💵' },
+  { value: 'card', label: 'Tarjeta', icon: '💳' },
+  { value: 'transfer', label: 'Transferencia', icon: '📲' },
+]
+
+export default function CheckoutScreen() {
   const router = useRouter()
+  const { items, total, updateQuantity, clearCart, checkout } = useCartStore()
   const { profile } = useAuth()
-  const { categories, loading: loadingCats } = useCategories()
-
-  const [name, setName] = useState('')
-  const [categoryId, setCategoryId] = useState<string | null>(null)
-  const [price, setPrice] = useState('')
-  const [stock, setStock] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [loading, setLoading] = useState(false)
-  const [fetching, setFetching] = useState(isEditing)
 
-  // Cargar producto existente al editar
-  useEffect(() => {
-    if (!id) return
-    supabase
-      .from('products')
-      .select('*')
-      .eq('id', id)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          const p = data as Product
-          setName(p.name)
-          setCategoryId(p.category_id ?? null)
-          setPrice(p.price.toString())
-          setStock(p.stock.toString())
-        }
-        setFetching(false)
-      })
-  }, [id])
-
-  // Seleccionar primera categoría por defecto cuando carguen
-  useEffect(() => {
-    if (!isEditing && categories.length > 0 && !categoryId) {
-      setCategoryId(categories[0].id)
-    }
-  }, [categories])
-
-  const handleSave = async () => {
-    if (!name.trim()) return Alert.alert('Nombre requerido')
-    if (!categoryId) return Alert.alert('Selecciona una categoría')
-    const priceNum = parseFloat(price)
-    const stockNum = parseInt(stock)
-    if (isNaN(priceNum) || priceNum < 0) return Alert.alert('Precio inválido')
-    if (isNaN(stockNum) || stockNum < 0) return Alert.alert('Stock inválido')
-
+  const handleCheckout = async () => {
+    if (!profile) { Alert.alert('Error', 'Sesión no válida.'); return }
     setLoading(true)
-    const payload = {
-      name: name.trim(),
-      category_id: categoryId,
-      price: priceNum,
-      stock: stockNum,
-      store_id: profile!.store_id,
-    }
-
-    const { error } = isEditing
-      ? await supabase.from('products').update(payload).eq('id', id)
-      : await supabase.from('products').insert(payload)
-
+    const { error, saleId } = await checkout(profile.store_id, profile.id, paymentMethod)
     setLoading(false)
-    if (error) Alert.alert('Error', error.message)
-    else router.back()
-  }
-
-  if (fetching || loadingCats) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <ActivityIndicator color={colors.primary} style={{ flex: 1 }} />
-      </SafeAreaView>
+    if (error) { Alert.alert('Error al registrar venta', error); return }
+    Alert.alert(
+      '✓ Venta registrada',
+      `Folio: ${saleId?.slice(0, 8).toUpperCase()}`,
+      [{ text: 'Listo', onPress: () => router.back() }]
     )
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.toolbar}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="close" size={24} color={colors.text} />
+    <SafeAreaView style={s.safe}>
+
+      {/* Toolbar */}
+      <View style={s.toolbar}>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+          <Ionicons name="chevron-down" size={22} color={colors.inkMid} />
         </TouchableOpacity>
-        <Text style={styles.toolbarTitle}>
-          {isEditing ? 'Editar producto' : 'Nuevo producto'}
-        </Text>
-        <View style={{ width: 24 }} />
+        <Text style={s.toolbarTitle}>Resumen</Text>
+        <TouchableOpacity onPress={clearCart}>
+          <Text style={s.clearBtn}>Vaciar</Text>
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.body}>
-
-        {/* Nombre */}
-        <Text style={styles.label}>Nombre del producto</Text>
-        <TextInput
-          style={styles.input}
-          value={name}
-          onChangeText={setName}
-          placeholder="Ej: Paleta de mango con chile"
-          placeholderTextColor={colors.muted}
-        />
-
-        {/* Categoría dinámica */}
-        <Text style={styles.label}>Categoría</Text>
-        {categories.length === 0 ? (
-          <View style={styles.noCatBox}>
-            <Text style={styles.noCatText}>
-              No hay categorías. Crea una desde Inventario → Categorías.
+      {/* Items */}
+      <FlatList
+        data={items}
+        keyExtractor={i => i.product.id}
+        contentContainerStyle={{ padding: 20, gap: 10 }}
+        renderItem={({ item }) => (
+          <View style={s.itemRow}>
+            <Text style={s.itemEmoji}>{item.product.category?.emoji ?? '🍽️'}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.itemName}>{item.product.name}</Text>
+              <Text style={s.itemUnit}>${item.product.price.toFixed(2)} c/u</Text>
+            </View>
+            <View style={s.qtyCtrl}>
+              <TouchableOpacity
+                style={s.qtyBtn}
+                onPress={() => updateQuantity(item.product.id, item.quantity - 1)}
+              >
+                <Ionicons name="remove" size={14} color={colors.inkMid} />
+              </TouchableOpacity>
+              <Text style={s.qty}>{item.quantity}</Text>
+              <TouchableOpacity
+                style={s.qtyBtn}
+                onPress={() => updateQuantity(item.product.id, item.quantity + 1)}
+              >
+                <Ionicons name="add" size={14} color={colors.inkMid} />
+              </TouchableOpacity>
+            </View>
+            <Text style={s.itemSubtotal}>
+              ${(item.product.price * item.quantity).toFixed(2)}
             </Text>
           </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 10, paddingVertical: 4 }}
-          >
-            {categories.map(cat => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[styles.catBtn, categoryId === cat.id && styles.catBtnActive]}
-                onPress={() => setCategoryId(cat.id)}
-              >
-                <Text style={styles.catEmoji}>{cat.emoji}</Text>
-                <Text style={[styles.catLabel, categoryId === cat.id && styles.catLabelActive]}>
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
         )}
+        ListEmptyComponent={
+          <View style={s.empty}>
+            <Text style={s.emptyText}>El carrito está vacío</Text>
+          </View>
+        }
+      />
 
-        {/* Precio */}
-        <Text style={styles.label}>Precio (MXN)</Text>
-        <TextInput
-          style={styles.input}
-          value={price}
-          onChangeText={setPrice}
-          keyboardType="decimal-pad"
-          placeholder="0.00"
-          placeholderTextColor={colors.muted}
-        />
+      {/* Payment method */}
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>Método de pago</Text>
+        <View style={s.pmRow}>
+          {PAYMENT_METHODS.map(pm => (
+            <TouchableOpacity
+              key={pm.value}
+              style={[s.pmChip, paymentMethod === pm.value && s.pmChipActive]}
+              onPress={() => setPaymentMethod(pm.value)}
+              activeOpacity={0.8}
+            >
+              <Text style={s.pmIcon}>{pm.icon}</Text>
+              <Text style={[s.pmLabel, paymentMethod === pm.value && s.pmLabelActive]}>
+                {pm.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
 
-        {/* Stock */}
-        <Text style={styles.label}>Stock disponible</Text>
-        <TextInput
-          style={styles.input}
-          value={stock}
-          onChangeText={setStock}
-          keyboardType="number-pad"
-          placeholder="0"
-          placeholderTextColor={colors.muted}
-        />
-
+      {/* Footer */}
+      <View style={s.footer}>
+        <View>
+          <Text style={s.footerLabel}>Total a cobrar</Text>
+          <Text style={s.footerAmount}>${total().toFixed(2)}</Text>
+        </View>
         <TouchableOpacity
-          style={[styles.saveBtn, loading && styles.saveBtnDisabled]}
-          onPress={handleSave}
-          disabled={loading}
+          style={[s.confirmBtn, (loading || items.length === 0) && s.confirmDisabled]}
+          onPress={handleCheckout}
+          disabled={loading || items.length === 0}
+          activeOpacity={0.85}
         >
           {loading
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.saveBtnText}>
-              {isEditing ? 'Guardar cambios' : 'Crear producto'}
-            </Text>
+            ? <ActivityIndicator color={colors.ink} />
+            : <Text style={s.confirmText}>Cobrar</Text>
           }
         </TouchableOpacity>
-      </ScrollView>
+      </View>
+
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
+
   toolbar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 14,
-    borderBottomWidth: 1, borderColor: colors.border,
+    paddingHorizontal: 20, paddingVertical: 16,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 0.5, borderBottomColor: colors.border,
+  },
+  backBtn: { padding: 4 },
+  toolbarTitle: { fontSize: 17, fontWeight: '600', color: colors.ink, letterSpacing: -0.3 },
+  clearBtn: { color: colors.accent, fontWeight: '500', fontSize: 14 },
+
+  itemRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: colors.surface, borderRadius: radius.lg,
+    padding: 14, borderWidth: 0.5, borderColor: colors.border,
+  },
+  itemEmoji: { fontSize: 26 },
+  itemName: { fontSize: 14, fontWeight: '500', color: colors.ink },
+  itemUnit: { fontSize: 12, color: colors.inkMuted, marginTop: 2 },
+  qtyCtrl: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: colors.background, borderRadius: radius.md,
+    paddingHorizontal: 8, paddingVertical: 6,
+  },
+  qtyBtn: { padding: 2 },
+  qty: { fontSize: 15, fontWeight: '600', color: colors.ink, minWidth: 20, textAlign: 'center' },
+  itemSubtotal: { fontSize: 15, fontWeight: '600', color: colors.ink, minWidth: 60, textAlign: 'right' },
+
+  empty: { alignItems: 'center', paddingVertical: 60 },
+  emptyText: { color: colors.inkMuted, fontSize: 15 },
+
+  section: { paddingHorizontal: 20, paddingBottom: 16 },
+  sectionTitle: { fontSize: 12, fontWeight: '500', color: colors.inkMuted, marginBottom: 10, letterSpacing: 0.04 },
+  pmRow: { flexDirection: 'row', gap: 10 },
+  pmChip: {
+    flex: 1, alignItems: 'center', paddingVertical: 12,
+    borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  toolbarTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
-  body: { padding: 20, gap: 8 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.muted, marginTop: 12 },
-  input: {
-    borderWidth: 1.5, borderColor: colors.border, borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 14,
-    fontSize: 16, color: colors.text, backgroundColor: colors.surface,
+  pmChipActive: { borderColor: colors.ink, backgroundColor: colors.ink },
+  pmIcon: { fontSize: 18, marginBottom: 4 },
+  pmLabel: { fontSize: 11, fontWeight: '500', color: colors.inkMid },
+  pmLabelActive: { color: '#fff' },
+
+  footer: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: 20, borderTopWidth: 0.5, borderTopColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  catBtn: {
-    alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10,
-    borderRadius: 12, borderWidth: 1.5, borderColor: colors.border,
-    backgroundColor: colors.surface, gap: 4,
+  footerLabel: { fontSize: 12, color: colors.inkMuted, marginBottom: 2 },
+  footerAmount: { fontSize: 28, fontWeight: '600', color: colors.ink, letterSpacing: -0.5 },
+  confirmBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 32, paddingVertical: 16, borderRadius: radius.lg,
   },
-  catBtnActive: { borderColor: colors.primary, backgroundColor: `${colors.primary}15` },
-  catEmoji: { fontSize: 22 },
-  catLabel: { fontSize: 12, fontWeight: '600', color: colors.text },
-  catLabelActive: { color: colors.primary },
-  noCatBox: {
-    padding: 16, borderRadius: 12,
-    backgroundColor: `${colors.accent}15`, borderWidth: 1, borderColor: colors.accent,
-  },
-  noCatText: { color: colors.accent, fontSize: 13, textAlign: 'center' },
-  saveBtn: {
-    backgroundColor: colors.primary, borderRadius: 14,
-    paddingVertical: 18, alignItems: 'center', marginTop: 24,
-  },
-  saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  confirmDisabled: { opacity: 0.4 },
+  confirmText: { color: colors.ink, fontSize: 16, fontWeight: '700' },
 })
