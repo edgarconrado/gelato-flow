@@ -1,21 +1,19 @@
 // app.config.js
-// Este archivo reemplaza app.json para builds de EAS.
-// Expone las variables de entorno EXPO_PUBLIC_* al bundle de JS.
 export default {
   expo: {
-    name: 'GelatoFlow App',
+    name: 'Gelato Flow',
     slug: 'gelato-flow-app',
     version: '1.0.0',
-    scheme: 'gelato-flow',
+    scheme: 'gelatoflow',
     orientation: 'portrait',
     userInterfaceStyle: 'light',
     newArchEnabled: true,
     ios: {
       supportsTablet: false,
-      bundleIdentifier: 'mx.gelato-flow.app',
+      bundleIdentifier: 'mx.jacarandalab.gelatoflow',
     },
     android: {
-      package: 'mx.gelato-flow.app',
+      package: 'mx.jacarandalab.gelatoflow',
       edgeToEdgeEnabled: true,
     },
     web: {
@@ -29,8 +27,6 @@ export default {
     experiments: {
       typedRoutes: true,
     },
-    // Las variables de entorno se leen aquí en tiempo de build
-    // y se incrustan en el bundle de JS
     extra: {
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
