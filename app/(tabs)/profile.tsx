@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Image } from 'expo-image'
 import * as ImagePicker from 'expo-image-picker'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { colors, radius, shadow } from '../../constants/theme'
@@ -20,66 +21,67 @@ const ROLE_LABELS: Record<string, { label: string; icon: string }> = {
 
 export default function ProfileScreen() {
   const { profile, signOut, refreshProfile } = useAuth()
+  const router = useRouter()
   const [uploading, setUploading] = useState(false)
+
+  // Estado local para la URI del avatar.
+  // Se inicializa con el valor de la BD y se actualiza
+  // inmediatamente con la imagen local al seleccionarla,
+  // sin esperar al round-trip de Supabase.
+  // Usamos null para "no override" (mostrar lo que viene del perfil).
+  const [localAvatarUri, setLocalAvatarUri] = useState<string | null>(null)
+
+  // La URI a mostrar: primero el override local, luego el de la BD
+  const displayUri = localAvatarUri ?? profile?.avatar_url ?? null
 
   const roleInfo = ROLE_LABELS[profile?.role ?? ''] ?? { label: profile?.role ?? '—', icon: '👤' }
   const initials = (profile?.full_name ?? profile?.email ?? 'U')
     .split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
 
-  // ── Seleccionar y subir foto de perfil ──────────────────────
   const handlePickAvatar = useCallback(async () => {
-    // Solicitar permiso a la galería
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
       Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería para cambiar la foto.')
       return
     }
 
-    // Abrir selector de imagen
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsEditing: true,
-      aspect: [1, 1],        // forzar cuadrado para avatar circular
-      quality: 0.7,           // comprimir para reducir tamaño
+      aspect: [1, 1],
+      quality: 0.75,
     })
 
     if (result.canceled || !result.assets[0]) return
 
     const asset = result.assets[0]
+
+    // ✅ Mostrar la imagen local INMEDIATAMENTE — sin esperar a Supabase
+    setLocalAvatarUri(asset.uri)
     setUploading(true)
 
     try {
-      // Leer imagen como ArrayBuffer
       const response = await fetch(asset.uri)
       const arrayBuffer = await response.arrayBuffer()
-
-      // Determinar extensión
       const ext = asset.mimeType === 'image/png' ? 'png' : 'jpg'
       const mimeType = asset.mimeType ?? 'image/jpeg'
-
-      // Path en Storage: avatars/{user_id}/avatar.{ext}
-      // La política RLS verifica que la primera carpeta sea el user_id
       const filePath = `${profile!.id}/avatar.${ext}`
 
       // Subir a Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, arrayBuffer, {
-          contentType: mimeType,
-          upsert: true,   // sobreescribir si ya existe
-        })
+        .upload(filePath, arrayBuffer, { contentType: mimeType, upsert: true })
 
       if (uploadError) throw uploadError
 
-      // Obtener URL pública
+      // Obtener URL pública con cache-buster
       const { data: urlData } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath)
 
-      // Agregar cache-buster para forzar recarga en expo-image
       const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`
 
-      // Actualizar campo avatar_url en profiles
+      // Actualizar profiles en la BD
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ avatar_url: publicUrl })
@@ -87,12 +89,17 @@ export default function ProfileScreen() {
 
       if (updateError) throw updateError
 
-      // Refrescar perfil en el contexto global
+      // Actualizar el estado local con la URL pública definitiva
+      // (para que al volver a entrar tenga la URL correcta)
+      setLocalAvatarUri(publicUrl)
+
+      // Refrescar contexto global silenciosamente
       await refreshProfile()
 
-      Alert.alert('✓ Foto actualizada')
     } catch (err: any) {
       console.error('[Avatar] Error:', err)
+      // Revertir preview local si falló el upload
+      setLocalAvatarUri(profile?.avatar_url ?? null)
       Alert.alert('Error al subir foto', err?.message ?? 'Intenta de nuevo')
     } finally {
       setUploading(false)
@@ -110,22 +117,20 @@ export default function ProfileScreen() {
     <SafeAreaView style={s.safe}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
 
-        {/* ── Hero header con avatar ─────────────────────────── */}
+        {/* ── Hero con avatar ──────────────────────────────────── */}
         <View style={s.hero}>
           <Text style={s.heroTitle}>Perfil</Text>
 
-          {/* Avatar circular + botón cámara */}
           <View style={s.avatarWrap}>
-            {uploading ? (
-              <View style={[s.avatar, s.avatarLoading]}>
-                <ActivityIndicator color={colors.ink} size="large" />
-              </View>
-            ) : profile?.avatar_url ? (
+            {displayUri ? (
               <Image
-                source={{ uri: profile.avatar_url }}
+                // La key fuerza que expo-image destruya y recree el componente
+                // cuando cambia la URI, ignorando cualquier cache interno
+                key={displayUri}
+                source={{ uri: displayUri }}
                 style={s.avatar}
                 contentFit="cover"
-                transition={200}
+                cachePolicy="none"
               />
             ) : (
               <View style={[s.avatar, s.avatarPlaceholder]}>
@@ -133,9 +138,15 @@ export default function ProfileScreen() {
               </View>
             )}
 
-            {/* Botón editar foto */}
+            {/* Overlay de carga encima de la imagen */}
+            {uploading && (
+              <View style={s.uploadingOverlay}>
+                <ActivityIndicator color="#fff" size="small" />
+              </View>
+            )}
+
             <TouchableOpacity
-              style={s.cameraBtn}
+              style={[s.cameraBtn, uploading && { opacity: 0.5 }]}
               onPress={handlePickAvatar}
               disabled={uploading}
               activeOpacity={0.85}
@@ -153,7 +164,7 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ── Información de la tienda ───────────────────────── */}
+        {/* ── Info de la tienda ────────────────────────────────── */}
         <View style={s.section}>
           <Text style={s.sectionLabel}>MI TIENDA</Text>
           <View style={s.card}>
@@ -163,29 +174,14 @@ export default function ProfileScreen() {
               </View>
               <Text style={s.storeName}>{profile?.store?.name ?? '—'}</Text>
             </View>
-
             <View style={s.divider} />
-
-            <InfoRow
-              icon="location-outline"
-              label="Dirección"
-              value={profile?.store?.address ?? 'Sin registrar'}
-            />
-            <InfoRow
-              icon="call-outline"
-              label="Teléfono"
-              value={profile?.store?.phone ?? 'Sin registrar'}
-            />
-            <InfoRow
-              icon="id-card-outline"
-              label="Store ID"
-              value={profile?.store_id?.slice(0, 8).toUpperCase() ?? '—'}
-              mono
-            />
+            <InfoRow icon="location-outline" label="Dirección" value={profile?.store?.address ?? 'Sin registrar'} />
+            <InfoRow icon="call-outline" label="Teléfono" value={profile?.store?.phone ?? 'Sin registrar'} />
+            <InfoRow icon="id-card-outline" label="Store ID" value={profile?.store_id?.slice(0, 8).toUpperCase() ?? '—'} mono />
           </View>
         </View>
 
-        {/* ── Cuenta ────────────────────────────────────────── */}
+        {/* ── Cuenta ──────────────────────────────────────────── */}
         <View style={s.section}>
           <Text style={s.sectionLabel}>CUENTA</Text>
           <View style={s.card}>
@@ -194,7 +190,30 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ── Cerrar sesión ─────────────────────────────────── */}
+        {/* ── Equipo (solo owner) ─────────────────────────────── */}
+        {profile?.role === 'owner' && (
+          <View style={s.section}>
+            <Text style={s.sectionLabel}>EQUIPO</Text>
+            <TouchableOpacity
+              style={s.teamBtn}
+              onPress={() => router.push('/team')}
+              activeOpacity={0.8}
+            >
+              <View style={s.teamBtnLeft}>
+                <View style={s.teamIconWrap}>
+                  <Ionicons name="people-outline" size={18} color={colors.primary} />
+                </View>
+                <View>
+                  <Text style={s.teamBtnTitle}>Gestionar equipo</Text>
+                  <Text style={s.teamBtnSub}>Invitar cajeros y gerentes</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.inkMuted} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── Cerrar sesión ────────────────────────────────────── */}
         <TouchableOpacity style={s.signOutBtn} onPress={handleSignOut} activeOpacity={0.8}>
           <Ionicons name="log-out-outline" size={17} color={colors.accent} />
           <Text style={s.signOutText}>Cerrar sesión</Text>
@@ -205,11 +224,7 @@ export default function ProfileScreen() {
   )
 }
 
-// ─── Componente de fila de info ───────────────────────────────
-
-function InfoRow({
-  icon, label, value, mono,
-}: {
+function InfoRow({ icon, label, value, mono }: {
   icon: string; label: string; value: string; mono?: boolean
 }) {
   return (
@@ -219,59 +234,48 @@ function InfoRow({
       </View>
       <View style={{ flex: 1 }}>
         <Text style={s.infoLabel}>{label}</Text>
-        <Text
-          style={[s.infoValue, mono && s.infoValueMono]}
-          numberOfLines={1}
-        >
-          {value}
-        </Text>
+        <Text style={[s.infoValue, mono && s.infoValueMono]} numberOfLines={1}>{value}</Text>
       </View>
     </View>
   )
 }
-
-// ─── Estilos ─────────────────────────────────────────────────
 
 const AVATAR_SIZE = 88
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
 
-  // Hero
   hero: {
     backgroundColor: colors.ink,
-    paddingTop: 20,
-    paddingBottom: 36,
-    alignItems: 'center',
-    gap: 6,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    paddingTop: 20, paddingBottom: 36,
+    alignItems: 'center', gap: 6,
+    borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
     ...shadow.header,
   },
   heroTitle: {
-    fontSize: 13, fontWeight: '600',
-    color: 'rgba(255,255,255,0.4)',
-    letterSpacing: 0.08,
-    marginBottom: 16,
-    alignSelf: 'flex-start',
-    paddingLeft: 20,
+    fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.4)',
+    letterSpacing: 0.08, marginBottom: 16,
+    alignSelf: 'flex-start', paddingLeft: 20,
   },
 
-  // Avatar
   avatarWrap: { position: 'relative', marginBottom: 4 },
   avatar: {
     width: AVATAR_SIZE, height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-  },
-  avatarLoading: {
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center', justifyContent: 'center',
   },
   avatarPlaceholder: {
     backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
   avatarInitials: { fontSize: 30, fontWeight: '700', color: colors.ink },
+
+  // Overlay semitransparente mientras sube la imagen
+  uploadingOverlay: {
+    position: 'absolute', inset: 0,
+    borderRadius: AVATAR_SIZE / 2,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center', justifyContent: 'center',
+  },
 
   cameraBtn: {
     position: 'absolute', bottom: 0, right: 0,
@@ -283,7 +287,6 @@ const s = StyleSheet.create({
 
   heroName: { fontSize: 20, fontWeight: '600', color: '#fff', letterSpacing: -0.3 },
   heroEmail: { fontSize: 13, color: 'rgba(255,255,255,0.4)' },
-
   roleBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: 'rgba(62,207,178,0.15)',
@@ -293,36 +296,23 @@ const s = StyleSheet.create({
   roleIcon: { fontSize: 14 },
   roleLabel: { fontSize: 13, fontWeight: '500', color: colors.primary },
 
-  // Sections
   section: { paddingHorizontal: 20, paddingTop: 24 },
-  sectionLabel: {
-    fontSize: 11, fontWeight: '600', color: colors.inkMuted,
-    letterSpacing: 0.07, marginBottom: 10,
-  },
+  sectionLabel: { fontSize: 11, fontWeight: '600', color: colors.inkMuted, letterSpacing: 0.07, marginBottom: 10 },
 
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    backgroundColor: colors.surface, borderRadius: radius.lg,
     borderWidth: 0.5, borderColor: colors.border,
-    overflow: 'hidden',
-    ...shadow.sm,
+    overflow: 'hidden', ...shadow.sm,
   },
-
-  // Store name header inside card
-  storeNameRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 16,
-  },
+  storeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
   storeIconWrap: {
     width: 38, height: 38, borderRadius: radius.md,
     backgroundColor: colors.primaryLight,
     alignItems: 'center', justifyContent: 'center',
   },
   storeName: { fontSize: 17, fontWeight: '600', color: colors.ink, flex: 1 },
-
   divider: { height: 0.5, backgroundColor: colors.border, marginHorizontal: 16 },
 
-  // Info rows
   infoRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 16, paddingVertical: 13,
@@ -337,7 +327,20 @@ const s = StyleSheet.create({
   infoValue: { fontSize: 14, fontWeight: '500', color: colors.ink },
   infoValueMono: { fontFamily: 'monospace', fontSize: 13, letterSpacing: 0.05 },
 
-  // Sign out
+  teamBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg, padding: 14,
+    borderWidth: 0.5, borderColor: colors.border,
+  },
+  teamBtnLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  teamIconWrap: {
+    width: 38, height: 38, borderRadius: radius.md,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  teamBtnTitle: { fontSize: 14, fontWeight: '500', color: colors.ink },
+  teamBtnSub: { fontSize: 12, color: colors.inkMuted, marginTop: 1 },
   signOutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginHorizontal: 20, marginTop: 24,

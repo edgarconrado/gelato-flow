@@ -101,3 +101,18 @@ export interface CartItem {
   product: Product
   quantity: number
 }
+
+export interface StoreInvitation {
+  id: string
+  store_id: string
+  email: string
+  role: 'manager' | 'cashier'
+  invited_by: string
+  accepted: boolean
+  created_at: string
+  expires_at: string
+}
+
+export interface TeamMember extends Profile {
+  // Profile ya tiene id, email, full_name, role, store_id, avatar_url
+}
