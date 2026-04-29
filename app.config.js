@@ -32,6 +32,14 @@ export default {
       'expo-router',
       'expo-secure-store',
       [
+        'expo-notifications',
+        {
+          icon: './assets/notification-icon.png',
+          color: '#3ECFB2',
+          defaultChannel: 'gelato-flow',
+        },
+      ],
+      [
         'expo-image-picker',
         {
           photosPermission: 'Gelato Flow necesita acceso a tu galería para actualizar tu foto de perfil.',

@@ -1,8 +1,52 @@
-// hooks/useData.ts
-import { useState, useEffect, useCallback } from 'react'
+// hooks/useData.ts — con Supabase Realtime corregido
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, Product, Category, Sale, DateFilter } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { startOfDay, startOfWeek, startOfMonth, startOfYear, format } from 'date-fns'
+
+// ── Helper: canal realtime con nombre único por instancia ─────
+function useRealtimeTable(
+  table: string,
+  storeId: string | undefined,
+  onchange: () => void
+) {
+  // Guardar la función en un ref para evitar re-suscripciones por cambios de closure
+  const onchangeRef = useRef(onchange)
+  onchangeRef.current = onchange
+
+  useEffect(() => {
+    if (!storeId) return
+
+    // Nombre único por instancia — evita colisión entre hooks del mismo componente
+    const channelName = `${table}-${storeId}-${Math.random().toString(36).slice(2)}`
+
+    // IMPORTANTE: .on() SIEMPRE antes de .subscribe()
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes' as any,
+        {
+          event: '*',
+          schema: 'public',
+          table,
+          filter: `store_id=eq.${storeId}`,
+        },
+        () => {
+          console.log(`[Realtime] ${table} changed, refreshing...`)
+          onchangeRef.current()
+        }
+      )
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`[Realtime] Listening to ${table}`)
+        }
+      })
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [table, storeId]) // No incluir onchange — usamos ref
+}
 
 // ─── useCategories ────────────────────────────────────────────
 
@@ -24,6 +68,8 @@ export function useCategories() {
   }, [profile?.store_id])
 
   useEffect(() => { fetch() }, [fetch])
+  useRealtimeTable('categories', profile?.store_id, fetch)
+
   return { categories, loading, refetch: fetch }
 }
 
@@ -37,28 +83,25 @@ export function useProducts(categoryId?: string | null) {
   const fetch = useCallback(async () => {
     if (!profile?.store_id) return
     setLoading(true)
-
     let query = supabase
       .from('products')
       .select('*, category:categories(id,name,emoji,sort_order)')
       .eq('store_id', profile.store_id)
       .eq('active', true)
       .order('name')
-
-    if (categoryId) {
-      query = query.eq('category_id', categoryId)
-    }
-
+    if (categoryId) query = query.eq('category_id', categoryId)
     const { data } = await query
     setProducts((data as Product[]) ?? [])
     setLoading(false)
   }, [profile?.store_id, categoryId])
 
   useEffect(() => { fetch() }, [fetch])
+  useRealtimeTable('products', profile?.store_id, fetch)
+
   return { products, loading, refetch: fetch }
 }
 
-// ─── useAllProducts (para inventario, sin filtro activo) ──────
+// ─── useAllProducts ───────────────────────────────────────────
 
 export function useAllProducts() {
   const [products, setProducts] = useState<Product[]>([])
@@ -78,100 +121,73 @@ export function useAllProducts() {
   }, [profile?.store_id])
 
   useEffect(() => { fetch() }, [fetch])
+  useRealtimeTable('products', profile?.store_id, fetch)
+
   return { products, loading, refetch: fetch }
 }
 
 // ─── useSalesReport ───────────────────────────────────────────
 
-export interface ReportData {
-  total: number
-  count: number
-  byDay: { date: string; total: number }[]
-  topProducts: { name: string; quantity: number; revenue: number }[]
-  recentSales: Sale[]
-}
-
 export function useSalesReport(filter: DateFilter) {
-  const [data, setData] = useState<ReportData | null>(null)
+  const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const { profile } = useAuth()
 
-  const getStartDate = (): string => {
-    const now = new Date()
-    switch (filter) {
-      case 'day': return startOfDay(now).toISOString()
-      case 'week': return startOfWeek(now, { weekStartsOn: 1 }).toISOString()
-      case 'month': return startOfMonth(now).toISOString()
-      case 'year': return startOfYear(now).toISOString()
-    }
-  }
-
-  useEffect(() => {
+  const fetch = useCallback(async () => {
     if (!profile?.store_id) return
+    setLoading(true)
 
-    const load = async () => {
-      setLoading(true)
+    const now = new Date()
+    const start = {
+      day: startOfDay(now),
+      week: startOfWeek(now, { weekStartsOn: 1 }),
+      month: startOfMonth(now),
+      year: startOfYear(now),
+    }[filter]
 
-      const { data: sales } = await supabase
-        .from('sales')
-        .select(`
-          id, total, created_at, payment_method, cashier_id,
-          cashier:profiles!cashier_id (full_name, email),
-          sale_items (
-            id, quantity, unit_price, subtotal,
-            product:products (id, name, type, category_id)
-          )
-        `)
-        .eq('store_id', profile.store_id)
-        .gte('created_at', getStartDate())
-        .order('created_at', { ascending: false })
+    const { data: sales } = await supabase
+      .from('sales')
+      .select('*, sale_items(*, product:products(name))')
+      .eq('store_id', profile.store_id)
+      .gte('created_at', start.toISOString())
+      .order('created_at', { ascending: false })
 
-      if (!sales) { setLoading(false); return }
+    if (!sales) { setLoading(false); return }
 
-      const total = (sales as Sale[]).reduce((s, sale) => s + sale.total, 0)
-      const count = sales.length
+    const total = sales.reduce((s: number, sale: any) => s + sale.total, 0)
+    const count = sales.length
 
-      // Agrupar por día para gráfica
-      const dayMap = new Map<string, number>()
-      for (const sale of sales as Sale[]) {
-        const key = format(new Date(sale.created_at), 'yyyy-MM-dd')
-        dayMap.set(key, (dayMap.get(key) ?? 0) + sale.total)
-      }
-      const byDay = Array.from(dayMap.entries())
-        .map(([date, total]) => ({ date, total }))
-        .sort((a, b) => a.date.localeCompare(b.date))
+    const byDayMap: Record<string, number> = {}
+    sales.forEach((sale: any) => {
+      const day = format(new Date(sale.created_at), 'yyyy-MM-dd')
+      byDayMap[day] = (byDayMap[day] ?? 0) + sale.total
+    })
+    const byDay = Object.entries(byDayMap)
+      .map(([date, total]) => ({ date, total }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-14)
 
-      // Top productos
-      const productMap = new Map<string, { quantity: number; revenue: number }>()
-      for (const sale of sales as Sale[]) {
-        for (const item of sale.sale_items ?? []) {
-          const name = item.product?.name ?? 'Desconocido'
-          const prev = productMap.get(name) ?? { quantity: 0, revenue: 0 }
-          productMap.set(name, {
-            quantity: prev.quantity + item.quantity,
-            revenue: prev.revenue + item.subtotal,
-          })
-        }
-      }
-      const topProducts = Array.from(productMap.entries())
-        .map(([name, v]) => ({ name, ...v }))
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 5)
-
-      setData({
-        total,
-        count,
-        byDay,
-        topProducts,
-        recentSales: sales as Sale[],
+    const productMap: Record<string, { name: string; quantity: number; revenue: number }> = {}
+    sales.forEach((sale: any) => {
+      ; (sale.sale_items ?? []).forEach((item: any) => {
+        const name = item.product?.name ?? 'Producto'
+        if (!productMap[name]) productMap[name] = { name, quantity: 0, revenue: 0 }
+        productMap[name].quantity += item.quantity
+        productMap[name].revenue += item.subtotal
       })
-      setLoading(false)
-    }
+    })
+    const topProducts = Object.values(productMap)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5)
 
-    load()
+    setData({ total, count, byDay, topProducts, recentSales: sales.slice(0, 20) })
+    setLoading(false)
   }, [profile?.store_id, filter])
 
-  return { data, loading }
+  useEffect(() => { fetch() }, [fetch])
+  useRealtimeTable('sales', profile?.store_id, fetch)
+
+  return { data, loading, refetch: fetch }
 }
 
 // ─── useSaleDetail ────────────────────────────────────────────
@@ -185,18 +201,11 @@ export function useSaleDetail(saleId: string | null) {
     setLoading(true)
     supabase
       .from('sales')
-      .select(`
-        id, total, created_at, payment_method,
-        cashier:profiles!cashier_id (full_name, email),
-        sale_items (
-          id, quantity, unit_price, subtotal,
-          product:products (id, name, type, category_id)
-        )
-      `)
+      .select('*, sale_items(*, product:products(name, category:categories(emoji)))')
       .eq('id', saleId)
       .single()
       .then(({ data }) => {
-        setSale(data as Sale ?? null)
+        setSale(data as Sale)
         setLoading(false)
       })
   }, [saleId])

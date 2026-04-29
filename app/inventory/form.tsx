@@ -9,6 +9,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase, Product } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
+import { notify } from '../../hooks/useNotifications'
 import { useCategories } from '../../hooks/useData'
 import { colors, radius, shadow } from '../../constants/theme'
 
@@ -55,13 +56,33 @@ export default function ProductFormScreen() {
     if (isNaN(stockNum) || stockNum < 0) return Alert.alert('Stock inválido')
 
     setLoading(true)
-    const payload = { name: name.trim(), category_id: categoryId, price: priceNum, stock: stockNum, store_id: profile!.store_id }
+    // Derivar type desde el nombre de la categoría seleccionada
+    const selectedCat = categories.find(c => c.id === categoryId)
+    const catName = selectedCat?.name?.toLowerCase() ?? ''
+    const typeMap: Record<string, string> = {
+      nieve: 'nieve', nieves: 'nieve',
+      paleta: 'paleta', paletas: 'paleta',
+      malteada: 'malteada', malteadas: 'malteada',
+      agua: 'agua', aguas: 'agua',
+    }
+    const derivedType = Object.keys(typeMap).find(k => catName.includes(k))
+      ? typeMap[Object.keys(typeMap).find(k => catName.includes(k))!]
+      : 'otro'
+    const payload = { name: name.trim(), category_id: categoryId, price: priceNum, stock: stockNum, store_id: profile!.store_id, type: derivedType }
     const { error } = isEditing
       ? await supabase.from('products').update(payload).eq('id', id)
       : await supabase.from('products').insert(payload)
     setLoading(false)
-    if (error) Alert.alert('Error', error.message)
-    else router.back()
+    if (error) {
+      Alert.alert('Error', error.message)
+    } else {
+      notify(
+        isEditing ? 'Producto actualizado' : 'Producto creado',
+        `"${name.trim()}" se guardó correctamente`,
+        'success'
+      )
+      router.back()
+    }
   }
 
   if (fetching || loadingCats) {

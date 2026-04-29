@@ -6,9 +6,11 @@ import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { AuthProvider, useAuth } from '../context/AuthContext'
+import { useNotifications } from '../hooks/useNotifications'
 
 function RootGuard() {
   const { session, loading } = useAuth()
+  useNotifications() // Inicializar permisos de notificaciones al arrancar
   const router = useRouter()
   const segments = useSegments()
 
