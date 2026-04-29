@@ -51,17 +51,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         // Recuperar sesión guardada en AsyncStorage.
-        // Si el refresh token expiró o fue revocado, limpiamos y mandamos al login.
-        supabase.auth.getSession().then(({ data: { session }, error }) => {
+        // Siempre limpiar cualquier sesión de invitación pendiente al arrancar.
+        // Usuarios normales tienen sesión persistida — la recuperamos.
+        // Usuarios invitados (invited=true) son redirigidos al login para
+        // que usen el flujo "Tengo un código de invitación".
+        supabase.auth.getSession().then(async ({ data: { session }, error }) => {
             if (error) {
-                // "Refresh Token Not Found" u otro error de token inválido
-                console.warn('[AuthContext] Token inválido, limpiando sesión:', error.message)
-                supabase.auth.signOut()
+                console.warn('[AuthContext] Token invalido:', error.message)
+                await supabase.auth.signOut()
                 setSession(null)
                 setProfile(null)
                 setLoading(false)
                 return
             }
+
+            // Solo limpiar si es una sesión de invitación con email sin confirmar
+            // (el usuario nunca completó el flujo de bienvenida).
+            // NO limpiar si email_confirmed_at existe — ya completó el proceso.
+            const isIncompleteInvite =
+                session?.user?.user_metadata?.invited === true &&
+                !session?.user?.email_confirmed_at
+
+            if (session && isIncompleteInvite) {
+                console.log('[AuthContext] Sesion de invitacion incompleta, limpiando...')
+                await supabase.auth.signOut()
+                setSession(null)
+                setProfile(null)
+                setLoading(false)
+                return
+            }
+
             setSession(session)
             if (session?.user) {
                 fetchProfile(session.user.id).finally(() => setLoading(false))
@@ -72,12 +91,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
-                // Si el token se intentó refrescar pero falló, cerrar sesión
+                console.log('[AuthContext] onAuthStateChange event:', event)
+
                 if (event === 'SIGNED_OUT' || (!session && event === 'TOKEN_REFRESHED')) {
                     setSession(null)
                     setProfile(null)
                     return
                 }
+
+                // USER_UPDATED: la contraseña fue actualizada exitosamente.
+                // NO interferir — welcome.tsx maneja su propio signOut después.
+                if (event === 'USER_UPDATED') {
+                    console.log('[AuthContext] USER_UPDATED — no interferir')
+                    return
+                }
+
+                // SIGNED_IN con invited=true: viene de verifyOtp en welcome.tsx.
+                // No establecer sesión normal — welcome.tsx la maneja directamente.
+                if (event === 'SIGNED_IN' && session?.user?.user_metadata?.invited === true) {
+                    console.log('[AuthContext] SIGNED_IN con invited=true — no interferir')
+                    return
+                }
+
                 setSession(session)
                 if (session?.user) {
                     await fetchProfile(session.user.id)

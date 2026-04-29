@@ -5,6 +5,7 @@ import {
   StyleSheet, ActivityIndicator, KeyboardAvoidingView,
   Platform, Alert, ScrollView,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { useAuth } from '../../context/AuthContext'
 import { colors, radius, shadow } from '../../constants/theme'
 
@@ -13,6 +14,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const router = useRouter()
   const { signIn } = useAuth()
 
   const handleLogin = async () => {
@@ -93,6 +95,14 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity
+          style={{ marginBottom: 16, alignItems: 'center' }}
+          onPress={() => router.push('/welcome')}
+        >
+          <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13 }}>
+            Tengo un enlace de invitacion
+          </Text>
+        </TouchableOpacity>
         <Text style={s.footer}>Solo para personal autorizado</Text>
       </ScrollView>
     </KeyboardAvoidingView>
