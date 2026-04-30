@@ -43,6 +43,7 @@ function RootGuard() {
         <Stack.Screen name="pos/checkout" options={{ presentation: 'modal' }} />
         <Stack.Screen name="inventory/form" options={{ presentation: 'modal' }} />
         <Stack.Screen name="team/index" options={{ headerShown: false }} />
+        <Stack.Screen name="caja/index" options={{ headerShown: false }} />
       </Stack>
 
       {/* Splash animado encima de todo — desaparece cuando auth termina de cargar */}

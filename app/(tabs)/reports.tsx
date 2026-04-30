@@ -5,6 +5,7 @@ import {
   ScrollView, TouchableOpacity, ActivityIndicator, Modal, FlatList,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useSalesReport, useSaleDetail } from '../../hooks/useData'
 import { Sale, DateFilter, PaymentMethod } from '../../lib/supabase'
@@ -24,6 +25,7 @@ const PM_LABELS: Record<PaymentMethod, string> = {
 }
 
 export default function ReportsScreen() {
+  const router = useRouter()
   const [filter, setFilter] = useState<DateFilter>('day')
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null)
   const { data, loading } = useSalesReport(filter)
@@ -33,10 +35,18 @@ export default function ReportsScreen() {
 
       {/* Header */}
       <View style={s.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={s.title}>Reportes</Text>
           <Text style={s.subtitle}>{format(new Date(), "dd 'de' MMMM", { locale: es })}</Text>
         </View>
+        <TouchableOpacity
+          style={s.cierrBtn}
+          onPress={() => router.push('/caja')}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="calculator-outline" size={15} color={colors.ink} />
+          <Text style={s.cierrBtnText}>Cierre</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Filter pills */}
@@ -257,6 +267,12 @@ const s = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '600', color: '#fff', letterSpacing: -0.5 },
   subtitle: { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 },
 
+  cierrBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: radius.md,
+  },
+  cierrBtnText: { color: colors.ink, fontWeight: '700', fontSize: 13 },
   filterRow: {
     flexDirection: 'row', padding: 16, gap: 8,
     backgroundColor: colors.ink,
