@@ -1,6 +1,10 @@
 // app/(tabs)/index.tsx — POS · Ink & Mint design
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native'
+import Animated, {
+  useSharedValue, useAnimatedStyle, withSpring, withSequence,
+  withTiming, Easing,
+} from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -21,6 +25,31 @@ export default function POSScreen() {
   const router = useRouter()
 
   const itemCount = items.reduce((s, i) => s + i.quantity, 0)
+
+  // ── Animaciones ──────────────────────────────────────────────
+  const cartScale = useSharedValue(1)
+  const cartBounce = useAnimatedStyle(() => ({ transform: [{ scale: cartScale.value }] }))
+
+  const totalScale = useSharedValue(1)
+  const totalBounce = useAnimatedStyle(() => ({ transform: [{ scale: totalScale.value }] }))
+
+  const prevCount = useRef(0)
+
+  useEffect(() => {
+    if (itemCount > prevCount.current) {
+      // Rebote del botón del carrito al agregar
+      cartScale.value = withSequence(
+        withSpring(1.25, { damping: 4, stiffness: 300 }),
+        withSpring(1, { damping: 6, stiffness: 200 })
+      )
+      // Rebote del total
+      totalScale.value = withSequence(
+        withTiming(1.06, { duration: 100, easing: Easing.out(Easing.quad) }),
+        withSpring(1, { damping: 8, stiffness: 180 })
+      )
+    }
+    prevCount.current = itemCount
+  }, [itemCount])
   const allCats = [ALL_CAT, ...categories] as (typeof ALL_CAT | Category)[]
 
   return (
@@ -32,15 +61,17 @@ export default function POSScreen() {
           <Text style={s.storeName}>{profile?.store?.name ?? 'Gelato Flow'}</Text>
           <Text style={s.storeSub}>Punto de venta</Text>
         </View>
-        <TouchableOpacity style={s.cartBtn} onPress={() => router.push('/pos/checkout')} activeOpacity={0.8}>
-          <Ionicons name="bag-outline" size={18} color={colors.primary} />
-          {itemCount > 0 && (
-            <>
-              <Text style={s.cartCount}>{itemCount}</Text>
-              <View style={s.cartDot} />
-            </>
-          )}
-        </TouchableOpacity>
+        <Animated.View style={cartBounce}>
+          <TouchableOpacity style={s.cartBtn} onPress={() => router.push('/pos/checkout')} activeOpacity={0.8}>
+            <Ionicons name="bag-outline" size={18} color={colors.primary} />
+            {itemCount > 0 && (
+              <>
+                <Text style={s.cartCount}>{itemCount}</Text>
+                <View style={s.cartDot} />
+              </>
+            )}
+          </TouchableOpacity>
+        </Animated.View>
       </View>
 
       {/* Category pills */}
@@ -99,7 +130,9 @@ export default function POSScreen() {
         <TouchableOpacity style={s.totalBar} onPress={() => router.push('/pos/checkout')} activeOpacity={0.9}>
           <View>
             <Text style={s.totalBarSub}>{itemCount} producto{itemCount !== 1 ? 's' : ''}</Text>
-            <Text style={s.totalBarAmount}>${total().toFixed(2)}</Text>
+            <Animated.Text style={[s.totalBarAmount, totalBounce]}>
+              ${total().toFixed(2)}
+            </Animated.Text>
           </View>
           <View style={s.payBtn}>
             <Text style={s.payBtnText}>Cobrar</Text>
@@ -115,25 +148,37 @@ export default function POSScreen() {
 function ProductCard({ product, onPress }: { product: Product; onPress: () => void }) {
   const inCart = useCartStore(st => st.items.find(i => i.product.id === product.id))
   const emoji = product.category?.emoji ?? '🍽️'
+  const pressScale = useSharedValue(1)
+  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: pressScale.value }] }))
+
+  const handlePress = () => {
+    pressScale.value = withSequence(
+      withTiming(0.93, { duration: 80, easing: Easing.out(Easing.quad) }),
+      withSpring(1, { damping: 5, stiffness: 300 })
+    )
+    onPress()
+  }
 
   return (
-    <TouchableOpacity
-      style={[s.card, !!inCart && s.cardActive]}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      {inCart && (
-        <View style={s.qtyBadge}>
-          <Text style={s.qtyText}>{inCart.quantity}</Text>
-        </View>
-      )}
-      <Text style={s.cardEmoji}>{emoji}</Text>
-      <Text style={s.cardName} numberOfLines={2}>{product.name}</Text>
-      <Text style={s.cardPrice}>${product.price.toFixed(2)}</Text>
-      {product.stock <= 5 && product.stock > 0 && (
-        <Text style={s.lowStock}>Solo {product.stock}</Text>
-      )}
-    </TouchableOpacity>
+    <Animated.View style={[s.card, !!inCart && s.cardActive, pressStyle]}>
+      <TouchableOpacity
+        style={{ flex: 1 }}
+        onPress={handlePress}
+        activeOpacity={1}
+      >
+        {inCart && (
+          <View style={s.qtyBadge}>
+            <Text style={s.qtyText}>{inCart.quantity}</Text>
+          </View>
+        )}
+        <Text style={s.cardEmoji}>{emoji}</Text>
+        <Text style={s.cardName} numberOfLines={2}>{product.name}</Text>
+        <Text style={s.cardPrice}>${product.price.toFixed(2)}</Text>
+        {product.stock <= 5 && product.stock > 0 && (
+          <Text style={s.lowStock}>Solo {product.stock}</Text>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
   )
 }
 
