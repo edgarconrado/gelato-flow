@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import * as Haptics from 'expo-haptics'
 import { useCartStore } from '../../store'
 import { useAuth } from '../../context/AuthContext'
 import { PaymentMethod } from '../../lib/supabase'
@@ -55,7 +56,7 @@ export default function CheckoutScreen() {
               '¿Vaciar todo el carrito?',
               [
                 { text: 'No', style: 'cancel' },
-                { text: 'Sí, vaciar', style: 'destructive', onPress: () => { clearCart(); router.back() } },
+                { text: 'Sí, vaciar', style: 'destructive', onPress: () => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); clearCart(); router.back() } },
               ]
             )
           }
@@ -106,7 +107,11 @@ export default function CheckoutScreen() {
             {/* Botón eliminar item */}
             <TouchableOpacity
               style={s.deleteItemBtn}
-              onPress={() => removeItem(item.product.id)}
+              onPress={() => {
+                // Warning haptic al eliminar — distinto al de agregar
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+                removeItem(item.product.id)
+              }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Ionicons name="close-circle" size={20} color={colors.accent} />

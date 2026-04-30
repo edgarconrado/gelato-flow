@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
+import * as Haptics from 'expo-haptics'
 import { useCategories, useProducts, useAllProducts } from '../../hooks/useData'
 import { useCartStore } from '../../store'
 import { useAuth } from '../../context/AuthContext'
@@ -234,6 +235,8 @@ function ProductCard({ product, onPress }: { product: Product; onPress: () => vo
   const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: pressScale.value }] }))
 
   const handlePress = () => {
+    // Light impact al agregar producto — sutil, no intrusivo
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     pressScale.value = withSequence(
       withTiming(0.93, { duration: 80, easing: Easing.out(Easing.quad) }),
       withSpring(1, { damping: 5, stiffness: 300 })
