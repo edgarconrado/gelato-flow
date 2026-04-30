@@ -4,6 +4,12 @@ export default {
     name: 'Gelato Flow',
     slug: 'gelato-flow-app',
     version: '1.0.0',
+    icon: './assets/icon.png',
+    splash: {
+      image: './assets/splash.png',
+      imageContentFit: 'contain',
+      backgroundColor: '#1A1A2E',
+    },
     scheme: 'gelatoflow',
     orientation: 'portrait',
     userInterfaceStyle: 'light',
