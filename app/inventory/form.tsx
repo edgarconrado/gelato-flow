@@ -26,6 +26,7 @@ export default function ProductFormScreen() {
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [price, setPrice] = useState('')
   const [stock, setStock] = useState('')
+  const [minStock, setMinStock] = useState('5')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [localImageUri, setLocalImageUri] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -41,6 +42,7 @@ export default function ProductFormScreen() {
         setCategoryId(p.category_id ?? null)
         setPrice(p.price.toString())
         setStock(p.stock.toString())
+        setMinStock(((p as any).min_stock ?? 5).toString())
         setImageUrl((p as any).image_url ?? null)
       }
       setFetching(false)
@@ -149,6 +151,7 @@ export default function ProductFormScreen() {
       store_id: profile!.store_id,
       type: derivedType,
       image_url: imageUrl ?? null,
+      min_stock: parseInt(minStock) || 5,
     }
 
     const { error } = isEditing
@@ -289,7 +292,7 @@ export default function ProductFormScreen() {
             />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.label}>Stock</Text>
+            <Text style={s.label}>Stock actual</Text>
             <TextInput
               style={s.input}
               value={stock}
@@ -298,6 +301,29 @@ export default function ProductFormScreen() {
               placeholder="0"
               placeholderTextColor={colors.inkMuted}
             />
+          </View>
+        </View>
+
+        {/* Umbral de stock bajo */}
+        <View style={s.minStockWrap}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.label}>Alerta de stock mínimo</Text>
+            <Text style={s.labelHint}>Notificar cuando el stock baje de este número</Text>
+          </View>
+          <View style={s.minStockInput}>
+            <TouchableOpacity
+              onPress={() => setMinStock(v => String(Math.max(0, parseInt(v || '0') - 1)))}
+              style={s.minStockBtn}
+            >
+              <Ionicons name="remove" size={18} color={colors.inkMid} />
+            </TouchableOpacity>
+            <Text style={s.minStockVal}>{minStock}</Text>
+            <TouchableOpacity
+              onPress={() => setMinStock(v => String(parseInt(v || '0') + 1))}
+              style={s.minStockBtn}
+            >
+              <Ionicons name="add" size={18} color={colors.inkMid} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -388,6 +414,29 @@ const s = StyleSheet.create({
   catChipText: { fontSize: 13, fontWeight: '500', color: colors.inkMid },
   catChipTextActive: { color: '#fff' },
 
+  minStockWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.md, padding: 14,
+    borderWidth: 1, borderColor: colors.border,
+    marginTop: 16, gap: 12,
+  },
+  labelHint: { fontSize: 11, color: colors.inkMuted, marginTop: 2 },
+  minStockInput: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  minStockBtn: {
+    width: 38, height: 44,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  minStockVal: {
+    width: 36, textAlign: 'center',
+    fontSize: 17, fontWeight: '600', color: colors.ink,
+  },
   noCatBox: {
     padding: 16, borderRadius: radius.md,
     backgroundColor: `${colors.accent}10`,

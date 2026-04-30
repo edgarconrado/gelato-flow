@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router'
 import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase, Product } from '../../lib/supabase'
+import { useLowStock } from '../../hooks/useLowStock'
 import { useAllProducts, useCategories } from '../../hooks/useData'
 import { useAuth } from '../../context/AuthContext'
 import { colors, radius, shadow } from '../../constants/theme'
@@ -20,6 +21,7 @@ export default function InventoryScreen() {
   const { categories, refetch: refetchCats } = useCategories()
   const { profile } = useAuth()
   const router = useRouter()
+  const { count: lowStockCount } = useLowStock()
   const canEdit = profile?.role !== 'cashier'
 
   const filtered = products.filter(p =>
@@ -39,6 +41,23 @@ export default function InventoryScreen() {
       <View style={s.header}>
         <Text style={s.title}>Inventario</Text>
         <View style={s.headerBtns}>
+          {/* Botón alertas de stock */}
+          <TouchableOpacity
+            style={[s.alertBtn, lowStockCount > 0 && s.alertBtnActive]}
+            onPress={() => router.push('/stock')}
+          >
+            <Ionicons
+              name="alert-circle-outline"
+              size={16}
+              color={lowStockCount > 0 ? '#fff' : colors.inkMuted}
+            />
+            {lowStockCount > 0 && (
+              <View style={s.alertBadge}>
+                <Text style={s.alertBadgeText}>{lowStockCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
           {canEdit && (
             <TouchableOpacity style={s.catBtn} onPress={() => setShowCatModal(true)}>
               <Ionicons name="pricetags-outline" size={16} color={colors.primary} />
@@ -276,6 +295,33 @@ const s = StyleSheet.create({
   },
   addBtnText: { color: colors.ink, fontWeight: '700', fontSize: 13 },
 
+  alertBtn: {
+    width: 38, height: 38, borderRadius: radius.md,
+    backgroundColor: colors.background,
+    borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center',
+    position: 'relative',
+  },
+  alertBtnActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  alertBadge: {
+    position: 'absolute', top: -4, right: -4,
+    backgroundColor: colors.ink,
+    borderRadius: 8, minWidth: 16, height: 16,
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5, borderColor: colors.accent,
+  },
+  alertBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+  lowStockBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: `${colors.accent}15`,
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: radius.pill,
+  },
+  lowStockBadgeText: { fontSize: 10, color: colors.accent, fontWeight: '600' },
   searchWrap: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: colors.surface,
