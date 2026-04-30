@@ -99,11 +99,11 @@ export default function ReportsScreen() {
               <View style={s.cardHeaderRow}>
                 <Text style={s.cardTitle}>Tendencia</Text>
                 <View style={s.legendRow}>
-                  <View style={s.legendItem}>
+                  <View key="curr" style={s.legendItem}>
                     <View style={[s.legendDot, { backgroundColor: colors.primary }]} />
                     <Text style={s.legendLabel}>Este período</Text>
                   </View>
-                  <View style={s.legendItem}>
+                  <View key="prev" style={s.legendItem}>
                     <View style={[s.legendDot, { backgroundColor: 'rgba(152,152,176,0.4)' }]} />
                     <Text style={s.legendLabel}>{comp?.previousLabel ?? 'Anterior'}</Text>
                   </View>
@@ -119,6 +119,7 @@ export default function ReportsScreen() {
               <Text style={s.cardTitle}>vs {comp.previousLabel}</Text>
               <View style={s.compRow}>
                 <CompItem
+                  key="ingresos"
                   label="Ingresos"
                   current={`$${comp.currentTotal.toFixed(2)}`}
                   previous={`$${comp.previousTotal.toFixed(2)}`}
@@ -126,6 +127,7 @@ export default function ReportsScreen() {
                 />
                 <View style={s.compDivider} />
                 <CompItem
+                  key="ventas"
                   label="Ventas"
                   current={`${comp.currentCount}`}
                   previous={`${comp.previousCount}`}
@@ -140,7 +142,7 @@ export default function ReportsScreen() {
             <View style={s.card}>
               <Text style={s.cardTitle}>Más vendidos</Text>
               {data.topProducts.map((p: any, i: number) => (
-                <View key={p.name} style={s.topRow}>
+                <View key={`top-${i}`} style={s.topRow}>
                   <View style={[s.rankBadge, i === 0 && s.rankBadgeGold]}>
                     <Text style={s.rankText}>{i + 1}</Text>
                   </View>
@@ -158,9 +160,9 @@ export default function ReportsScreen() {
           {(data?.recentSales?.length ?? 0) > 0 && (
             <View style={s.card}>
               <Text style={s.cardTitle}>Ventas recientes</Text>
-              {data.recentSales.map((sale: any) => (
+              {data.recentSales.map((sale: any, sIdx: number) => (
                 <TouchableOpacity
-                  key={sale.id}
+                  key={sale.id ?? sIdx}
                   style={s.saleRow}
                   onPress={() => setSelectedSaleId(sale.id)}
                   activeOpacity={0.7}
@@ -236,21 +238,21 @@ function TrendChart({ data }: {
     <View style={{ marginTop: 16 }}>
       {/* Líneas de referencia */}
       <View style={s.chartArea}>
-        {[0.75, 0.5, 0.25].map(pct => (
-          <View key={pct} style={[s.gridLine, { bottom: `${pct * 100}%` }]}>
+        {[0.75, 0.5, 0.25].map((pct) => (
+          <View key={`grid-${pct}`} style={[s.gridLine, { bottom: `${pct * 100}%` }]}>
             <Text style={s.gridLabel}>${((maxVal * pct) / 1000).toFixed(maxVal > 1000 ? 1 : 0)}{maxVal > 1000 ? 'k' : ''}</Text>
           </View>
         ))}
 
         {/* Barras */}
         <View style={s.barsRow}>
-          {visible.map((d, i) => {
+          {visible.map((d: any, i: number) => {
             const curH = maxVal > 0 ? (d.currentVal / maxVal) * 100 : 0
             const prevH = maxVal > 0 ? (d.previousVal / maxVal) * 100 : 0
             const showLabel = visible.length <= 7 || i % Math.ceil(visible.length / 7) === 0
 
             return (
-              <View key={i} style={s.barGroup}>
+              <View key={`bar-${i}`} style={s.barGroup}>
                 <View style={s.barPair}>
                   {/* Barra período anterior */}
                   <View style={[s.barPrev, { height: `${Math.max(prevH, 2)}%` }]} />
@@ -322,8 +324,8 @@ function TicketModal({ saleId, onClose }: { saleId: string | null; onClose: () =
                 <Text style={[s.kpiLabel, { width: 30, textAlign: 'center' }]}>CANT</Text>
                 <Text style={[s.kpiLabel, { width: 70, textAlign: 'right' }]}>TOTAL</Text>
               </View>
-              {(sale.sale_items ?? []).map((item: any) => (
-                <View key={item.id} style={[s.topRow, { paddingVertical: 10 }]}>
+              {(sale.sale_items ?? []).map((item: any, idx: number) => (
+                <View key={item.id ?? idx} style={[s.topRow, { paddingVertical: 10 }]}>
                   <Text style={[s.topName, { flex: 3 }]} numberOfLines={2}>{item.product?.name}</Text>
                   <Text style={[s.topQty, { width: 30, textAlign: 'center', color: colors.ink }]}>{item.quantity}</Text>
                   <Text style={[s.topRevenue, { width: 70, textAlign: 'right' }]}>${(item.subtotal ?? item.unit_price * item.quantity).toFixed(2)}</Text>
