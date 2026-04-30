@@ -6,6 +6,7 @@ import { colors } from '../../constants/theme'
 export default function TabsLayout() {
   return (
     <Tabs
+      sceneContainerStyle={{ paddingBottom: 62 }}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
@@ -17,6 +18,12 @@ export default function TabsLayout() {
           height: 62,
           paddingBottom: 10,
           paddingTop: 8,
+          // Forzar visibilidad en Android con edgeToEdgeEnabled
+          elevation: 8,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
         },
         tabBarLabelStyle: {
           fontSize: 10,

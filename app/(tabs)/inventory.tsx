@@ -6,6 +6,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase, Product } from '../../lib/supabase'
 import { useAllProducts, useCategories } from '../../hooks/useData'
@@ -79,7 +80,15 @@ export default function InventoryScreen() {
         renderItem={({ item }) => (
           <View style={[s.card, !item.active && s.cardInactive]}>
             <View style={s.cardEmoji}>
-              <Text style={{ fontSize: 22 }}>{item.category?.emoji ?? '🍽️'}</Text>
+              {(item as any).image_url ? (
+                <Image
+                  source={{ uri: (item as any).image_url }}
+                  style={{ width: 44, height: 44, borderRadius: radius.md }}
+                  contentFit="cover"
+                />
+              ) : (
+                <Text style={{ fontSize: 22 }}>{item.category?.emoji ?? '🍽️'}</Text>
+              )}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.cardName}>{item.name}</Text>

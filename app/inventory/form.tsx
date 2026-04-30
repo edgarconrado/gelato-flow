@@ -1,4 +1,4 @@
-// app/inventory/form.tsx — Ink & Mint design
+// app/inventory/form.tsx — Formulario de producto con foto · Ink & Mint
 import { useState, useEffect } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
@@ -6,11 +6,13 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
+import { Image } from 'expo-image'
+import * as ImagePicker from 'expo-image-picker'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase, Product } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { notify } from '../../hooks/useNotifications'
 import { useCategories } from '../../hooks/useData'
+import { notify } from '../../hooks/useNotifications'
 import { colors, radius, shadow } from '../../constants/theme'
 
 export default function ProductFormScreen() {
@@ -24,6 +26,9 @@ export default function ProductFormScreen() {
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [price, setPrice] = useState('')
   const [stock, setStock] = useState('')
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [localImageUri, setLocalImageUri] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(isEditing)
 
@@ -36,6 +41,7 @@ export default function ProductFormScreen() {
         setCategoryId(p.category_id ?? null)
         setPrice(p.price.toString())
         setStock(p.stock.toString())
+        setImageUrl((p as any).image_url ?? null)
       }
       setFetching(false)
     })
@@ -47,6 +53,71 @@ export default function ProductFormScreen() {
     }
   }, [categories])
 
+  // ── Seleccionar y subir imagen ─────────────────────────────
+  const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (status !== 'granted') {
+      Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.')
+      return
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.75,
+    })
+
+    if (result.canceled || !result.assets[0]) return
+
+    const asset = result.assets[0]
+    setLocalImageUri(asset.uri) // Mostrar inmediatamente
+    setUploading(true)
+
+    try {
+      const response = await fetch(asset.uri)
+      const arrayBuffer = await response.arrayBuffer()
+      const ext = asset.mimeType === 'image/png' ? 'png' : 'jpg'
+      const mimeType = asset.mimeType ?? 'image/jpeg'
+
+      // Path: products/{store_id}/{timestamp}.{ext}
+      const filePath = `${profile!.store_id}/${Date.now()}.${ext}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('products')
+        .upload(filePath, arrayBuffer, { contentType: mimeType, upsert: true })
+
+      if (uploadError) throw uploadError
+
+      const { data: urlData } = supabase.storage
+        .from('products')
+        .getPublicUrl(filePath)
+
+      const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`
+      setImageUrl(publicUrl)
+      setLocalImageUri(publicUrl)
+
+    } catch (err: any) {
+      Alert.alert('Error al subir imagen', err?.message ?? 'Intenta de nuevo')
+      setLocalImageUri(null)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleRemoveImage = () => {
+    Alert.alert('Quitar foto', '¿Eliminar la foto del producto?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Quitar', style: 'destructive', onPress: () => {
+          setImageUrl(null)
+          setLocalImageUri(null)
+        }
+      },
+    ])
+  }
+
+  // ── Guardar producto ───────────────────────────────────────
   const handleSave = async () => {
     if (!name.trim()) return Alert.alert('Nombre requerido')
     if (!categoryId) return Alert.alert('Selecciona una categoría')
@@ -56,7 +127,8 @@ export default function ProductFormScreen() {
     if (isNaN(stockNum) || stockNum < 0) return Alert.alert('Stock inválido')
 
     setLoading(true)
-    // Derivar type desde el nombre de la categoría seleccionada
+
+    // Derivar type desde categoría
     const selectedCat = categories.find(c => c.id === categoryId)
     const catName = selectedCat?.name?.toLowerCase() ?? ''
     const typeMap: Record<string, string> = {
@@ -68,11 +140,23 @@ export default function ProductFormScreen() {
     const derivedType = Object.keys(typeMap).find(k => catName.includes(k))
       ? typeMap[Object.keys(typeMap).find(k => catName.includes(k))!]
       : 'otro'
-    const payload = { name: name.trim(), category_id: categoryId, price: priceNum, stock: stockNum, store_id: profile!.store_id, type: derivedType }
+
+    const payload = {
+      name: name.trim(),
+      category_id: categoryId,
+      price: priceNum,
+      stock: stockNum,
+      store_id: profile!.store_id,
+      type: derivedType,
+      image_url: imageUrl ?? null,
+    }
+
     const { error } = isEditing
       ? await supabase.from('products').update(payload).eq('id', id)
       : await supabase.from('products').insert(payload)
+
     setLoading(false)
+
     if (error) {
       Alert.alert('Error', error.message)
     } else {
@@ -93,19 +177,71 @@ export default function ProductFormScreen() {
     )
   }
 
+  const displayUri = localImageUri ?? imageUrl
+
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.toolbar}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="close" size={22} color='rgba(255,255,255,0.7)' />
+          <Ionicons name="close" size={22} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
         <Text style={s.toolbarTitle}>{isEditing ? 'Editar producto' : 'Nuevo producto'}</Text>
         <View style={{ width: 22 }} />
       </View>
 
-      <ScrollView contentContainerStyle={s.body}>
+      <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
 
-        <Text style={s.label}>Nombre</Text>
+        {/* ── Foto del producto ─────────────────────────────── */}
+        <View style={s.imageSection}>
+          <TouchableOpacity
+            style={s.imageWrap}
+            onPress={handlePickImage}
+            activeOpacity={0.85}
+            disabled={uploading}
+          >
+            {displayUri ? (
+              <>
+                <Image
+                  key={displayUri}
+                  source={{ uri: displayUri }}
+                  style={s.productImage}
+                  contentFit="cover"
+                  cachePolicy="none"
+                />
+                {uploading && (
+                  <View style={s.uploadOverlay}>
+                    <ActivityIndicator color="#fff" />
+                  </View>
+                )}
+                {/* Botón quitar */}
+                {!uploading && (
+                  <TouchableOpacity style={s.removeBtn} onPress={handleRemoveImage}>
+                    <Ionicons name="close" size={14} color="#fff" />
+                  </TouchableOpacity>
+                )}
+                {/* Botón cambiar */}
+                <View style={s.editBadge}>
+                  <Ionicons name="camera" size={13} color="#fff" />
+                </View>
+              </>
+            ) : (
+              <View style={s.imagePlaceholder}>
+                {uploading ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <>
+                    <Ionicons name="camera-outline" size={28} color={colors.inkMuted} />
+                    <Text style={s.imagePlaceholderText}>Agregar foto</Text>
+                  </>
+                )}
+              </View>
+            )}
+          </TouchableOpacity>
+          <Text style={s.imageHint}>Opcional · cuadrada, máx 3MB</Text>
+        </View>
+
+        {/* ── Nombre ───────────────────────────────────────── */}
+        <Text style={s.label}>Nombre del producto</Text>
         <TextInput
           style={s.input}
           value={name}
@@ -114,10 +250,11 @@ export default function ProductFormScreen() {
           placeholderTextColor={colors.inkMuted}
         />
 
+        {/* ── Categoría ────────────────────────────────────── */}
         <Text style={s.label}>Categoría</Text>
         {categories.length === 0 ? (
           <View style={s.noCatBox}>
-            <Text style={s.noCatText}>Crea categorías desde Inventario → pricetags</Text>
+            <Text style={s.noCatText}>Crea categorías desde Inventario → 🏷️</Text>
           </View>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}
@@ -138,35 +275,44 @@ export default function ProductFormScreen() {
           </ScrollView>
         )}
 
-        <Text style={s.label}>Precio (MXN)</Text>
-        <TextInput
-          style={s.input}
-          value={price}
-          onChangeText={setPrice}
-          keyboardType="decimal-pad"
-          placeholder="0.00"
-          placeholderTextColor={colors.inkMuted}
-        />
+        {/* ── Precio y Stock ───────────────────────────────── */}
+        <View style={s.rowInputs}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.label}>Precio (MXN)</Text>
+            <TextInput
+              style={s.input}
+              value={price}
+              onChangeText={setPrice}
+              keyboardType="decimal-pad"
+              placeholder="0.00"
+              placeholderTextColor={colors.inkMuted}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.label}>Stock</Text>
+            <TextInput
+              style={s.input}
+              value={stock}
+              onChangeText={setStock}
+              keyboardType="number-pad"
+              placeholder="0"
+              placeholderTextColor={colors.inkMuted}
+            />
+          </View>
+        </View>
 
-        <Text style={s.label}>Stock disponible</Text>
-        <TextInput
-          style={s.input}
-          value={stock}
-          onChangeText={setStock}
-          keyboardType="number-pad"
-          placeholder="0"
-          placeholderTextColor={colors.inkMuted}
-        />
-
+        {/* ── Guardar ──────────────────────────────────────── */}
         <TouchableOpacity
-          style={[s.saveBtn, loading && { opacity: 0.6 }]}
+          style={[s.saveBtn, (loading || uploading) && { opacity: 0.6 }]}
           onPress={handleSave}
-          disabled={loading}
+          disabled={loading || uploading}
           activeOpacity={0.85}
         >
           {loading
             ? <ActivityIndicator color={colors.ink} />
-            : <Text style={s.saveBtnText}>{isEditing ? 'Guardar cambios' : 'Crear producto'}</Text>
+            : <Text style={s.saveBtnText}>
+              {isEditing ? 'Guardar cambios' : 'Crear producto'}
+            </Text>
           }
         </TouchableOpacity>
 
@@ -174,6 +320,8 @@ export default function ProductFormScreen() {
     </SafeAreaView>
   )
 }
+
+const IMAGE_SIZE = 120
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
@@ -183,13 +331,53 @@ const s = StyleSheet.create({
     backgroundColor: colors.ink,
   },
   toolbarTitle: { fontSize: 17, fontWeight: '600', color: '#fff', letterSpacing: -0.3 },
-  body: { padding: 24, gap: 6 },
-  label: { fontSize: 12, fontWeight: '500', color: colors.inkMuted, marginTop: 16, letterSpacing: 0.04 },
+  body: { padding: 24, gap: 4 },
+
+  // Imagen
+  imageSection: { alignItems: 'center', marginBottom: 8 },
+  imageWrap: {
+    width: IMAGE_SIZE, height: IMAGE_SIZE,
+    borderRadius: radius.xl,
+    overflow: 'hidden', position: 'relative',
+    ...shadow.card,
+  },
+  productImage: { width: IMAGE_SIZE, height: IMAGE_SIZE },
+  uploadOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  imagePlaceholder: {
+    width: IMAGE_SIZE, height: IMAGE_SIZE,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5, borderColor: colors.border,
+    borderStyle: 'dashed', borderRadius: radius.xl,
+    alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  imagePlaceholderText: { fontSize: 12, color: colors.inkMuted, fontWeight: '500' },
+  removeBtn: {
+    position: 'absolute', top: 6, right: 6,
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  editBadge: {
+    position: 'absolute', bottom: 6, right: 6,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  imageHint: { fontSize: 11, color: colors.inkMuted, marginTop: 8 },
+
+  // Form
+  label: { fontSize: 12, fontWeight: '500', color: colors.inkMuted, marginTop: 16, marginBottom: 6 },
   input: {
     borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
     paddingHorizontal: 16, paddingVertical: 14,
     fontSize: 15, color: colors.ink, backgroundColor: colors.surface,
   },
+  rowInputs: { flexDirection: 'row', gap: 12 },
+
   catChip: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     paddingHorizontal: 14, paddingVertical: 10,
@@ -199,15 +387,18 @@ const s = StyleSheet.create({
   catChipActive: { borderColor: colors.ink, backgroundColor: colors.ink },
   catChipText: { fontSize: 13, fontWeight: '500', color: colors.inkMid },
   catChipTextActive: { color: '#fff' },
+
   noCatBox: {
     padding: 16, borderRadius: radius.md,
     backgroundColor: `${colors.accent}10`,
     borderWidth: 1, borderColor: `${colors.accent}30`,
   },
   noCatText: { color: colors.accent, fontSize: 13, textAlign: 'center' },
+
   saveBtn: {
     backgroundColor: colors.primary, borderRadius: radius.md,
     paddingVertical: 17, alignItems: 'center', marginTop: 28,
+    flexDirection: 'row', justifyContent: 'center',
   },
   saveBtnText: { color: colors.ink, fontSize: 15, fontWeight: '700' },
 })

@@ -20,7 +20,7 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: string }[] =
 
 export default function CheckoutScreen() {
   const router = useRouter()
-  const { items, total, updateQuantity, clearCart, checkout } = useCartStore()
+  const { items, total, updateQuantity, removeItem, clearCart, checkout } = useCartStore()
   const { profile } = useAuth()
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [loading, setLoading] = useState(false)
@@ -47,8 +47,21 @@ export default function CheckoutScreen() {
           <Ionicons name="chevron-down" size={22} color={colors.inkMid} />
         </TouchableOpacity>
         <Text style={s.toolbarTitle}>Resumen</Text>
-        <TouchableOpacity onPress={clearCart}>
-          <Text style={s.clearBtn}>Vaciar</Text>
+        <TouchableOpacity
+          style={s.clearAllBtn}
+          onPress={() =>
+            Alert.alert(
+              'Cancelar venta',
+              '¿Vaciar todo el carrito?',
+              [
+                { text: 'No', style: 'cancel' },
+                { text: 'Sí, vaciar', style: 'destructive', onPress: () => { clearCart(); router.back() } },
+              ]
+            )
+          }
+        >
+          <Ionicons name="trash-outline" size={16} color={colors.accent} />
+          <Text style={s.clearBtn}>Cancelar</Text>
         </TouchableOpacity>
       </View>
 
@@ -59,11 +72,19 @@ export default function CheckoutScreen() {
         contentContainerStyle={{ padding: 20, gap: 10 }}
         renderItem={({ item }) => (
           <View style={s.itemRow}>
-            <Text style={s.itemEmoji}>{item.product.category?.emoji ?? '🍽️'}</Text>
+            {/* Emoji / imagen */}
+            {(item.product as any).image_url ? (
+              <View style={s.itemImageWrap}>
+                <Text style={{ fontSize: 0 }} />
+              </View>
+            ) : (
+              <Text style={s.itemEmoji}>{item.product.category?.emoji ?? '🍽️'}</Text>
+            )}
             <View style={{ flex: 1 }}>
               <Text style={s.itemName}>{item.product.name}</Text>
               <Text style={s.itemUnit}>${item.product.price.toFixed(2)} c/u</Text>
             </View>
+            {/* Controles de cantidad */}
             <View style={s.qtyCtrl}>
               <TouchableOpacity
                 style={s.qtyBtn}
@@ -82,6 +103,14 @@ export default function CheckoutScreen() {
             <Text style={s.itemSubtotal}>
               ${(item.product.price * item.quantity).toFixed(2)}
             </Text>
+            {/* Botón eliminar item */}
+            <TouchableOpacity
+              style={s.deleteItemBtn}
+              onPress={() => removeItem(item.product.id)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close-circle" size={20} color={colors.accent} />
+            </TouchableOpacity>
           </View>
         )}
         ListEmptyComponent={
@@ -145,7 +174,15 @@ const s = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   toolbarTitle: { fontSize: 17, fontWeight: '600', color: colors.ink, letterSpacing: -0.3 },
-  clearBtn: { color: colors.accent, fontWeight: '500', fontSize: 14 },
+  clearAllBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: `${colors.accent}12`,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: radius.md,
+    borderWidth: 1, borderColor: `${colors.accent}30`,
+  },
+  clearBtn: { color: colors.accent, fontWeight: '600', fontSize: 13 },
+  deleteItemBtn: { marginLeft: 4 },
 
   itemRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
