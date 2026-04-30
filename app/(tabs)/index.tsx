@@ -1,6 +1,6 @@
 // app/(tabs)/index.tsx — POS · Ink & Mint design
 import { useState, useEffect, useRef } from 'react'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput } from 'react-native'
 import Animated, {
   useSharedValue, useAnimatedStyle, withSpring, withSequence,
   withTiming, Easing,
@@ -8,7 +8,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { useCategories, useProducts } from '../../hooks/useData'
+import { useCategories, useProducts, useAllProducts } from '../../hooks/useData'
 import { useCartStore } from '../../store'
 import { useAuth } from '../../context/AuthContext'
 import { Product, Category } from '../../lib/supabase'
@@ -18,8 +18,18 @@ const ALL_CAT = { id: '__all__', name: 'Todos', emoji: '✦', sort_order: 0, sto
 
 export default function POSScreen() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [searchActive, setSearchActive] = useState(false)
+  const searchRef = useRef<any>(null)
+  const searchBarHeight = useSharedValue(0)
+  const searchBarStyle = useAnimatedStyle(() => ({
+    height: searchBarHeight.value,
+    overflow: 'hidden',
+    opacity: withTiming(searchBarHeight.value > 0 ? 1 : 0, { duration: 150 }),
+  }))
   const { categories, loading: loadingCats } = useCategories()
   const { products, loading: loadingProducts } = useProducts(selectedCategoryId)
+  const { products: allProducts, loading: loadingAll } = useAllProducts()
   const { items, addItem, total } = useCartStore()
   const { profile } = useAuth()
   const router = useRouter()
@@ -50,7 +60,29 @@ export default function POSScreen() {
     }
     prevCount.current = itemCount
   }, [itemCount])
+
+  const handleSearchToggle = () => {
+    if (searchActive) {
+      // Cerrar búsqueda
+      setSearch('')
+      searchBarHeight.value = withTiming(0, { duration: 220, easing: Easing.out(Easing.quad) })
+      setSearchActive(false)
+    } else {
+      // Abrir búsqueda
+      setSearchActive(true)
+      searchBarHeight.value = withSpring(72, { damping: 14, stiffness: 180 })
+      setTimeout(() => searchRef.current?.focus(), 250)
+    }
+  }
   const allCats = [ALL_CAT, ...categories] as (typeof ALL_CAT | Category)[]
+
+  // Al buscar, filtra sobre TODOS los productos (ignora categoría seleccionada)
+  const filteredProducts = search.trim()
+    ? allProducts.filter(p =>
+      p.name.toLowerCase().includes(search.toLowerCase().trim()) && p.active !== false
+    )
+    : products
+
 
   return (
     <SafeAreaView style={s.safe}>
@@ -62,6 +94,17 @@ export default function POSScreen() {
           <Text style={s.storeSub}>Punto de venta</Text>
         </View>
         <Animated.View style={cartBounce}>
+          <TouchableOpacity
+            style={s.searchIconBtn}
+            onPress={handleSearchToggle}
+            activeOpacity={0.75}
+          >
+            <Ionicons
+              name={searchActive ? 'close' : 'search'}
+              size={17}
+              color={searchActive ? colors.accent : colors.primary}
+            />
+          </TouchableOpacity>
           <TouchableOpacity style={s.cartBtn} onPress={() => router.push('/pos/checkout')} activeOpacity={0.8}>
             <Ionicons name="bag-outline" size={18} color={colors.primary} />
             {itemCount > 0 && (
@@ -73,6 +116,31 @@ export default function POSScreen() {
           </TouchableOpacity>
         </Animated.View>
       </View>
+
+      {/* Barra de búsqueda animada */}
+      <Animated.View style={[s.searchBarWrap, searchBarStyle]}>
+        <Ionicons name="search-outline" size={18} color={colors.primary} style={s.searchIcon} />
+        <TextInput
+          ref={searchRef}
+          style={s.searchInput}
+          placeholder="Buscar producto…"
+          placeholderTextColor={colors.inkMuted}
+          value={search}
+          onChangeText={setSearch}
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="search"
+        />
+        {search.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setSearch('')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={s.searchClear}
+          >
+            <Ionicons name="close-circle" size={20} color={colors.inkMuted} />
+          </TouchableOpacity>
+        )}
+      </Animated.View>
 
       {/* Category pills */}
       {!loadingCats && (
@@ -109,7 +177,7 @@ export default function POSScreen() {
         </View>
       ) : (
         <FlatList
-          data={products}
+          data={filteredProducts}
           numColumns={2}
           keyExtractor={p => p.id}
           contentContainerStyle={s.grid}
@@ -119,7 +187,14 @@ export default function POSScreen() {
           )}
           ListEmptyComponent={
             <View style={s.center}>
-              <Text style={s.loadingText}>Sin productos en esta categoría</Text>
+              <Text style={{ fontSize: 36, marginBottom: 12 }}>
+                {search ? '🔍' : '📦'}
+              </Text>
+              <Text style={s.loadingText}>
+                {search
+                  ? `Sin resultados para "${search}"`
+                  : 'Sin productos en esta categoría'}
+              </Text>
             </View>
           }
         />
@@ -208,6 +283,34 @@ const s = StyleSheet.create({
     backgroundColor: colors.primary,
   },
 
+  searchIconBtn: {
+    width: 36, height: 36, borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 4,
+  },
+  searchBarWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.border,
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  searchIcon: {
+    marginVertical: 16,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.ink,
+    paddingVertical: 16,
+    includeFontPadding: false,
+  },
+  searchClear: {
+    padding: 4,
+  },
   pillWrapper: {
     backgroundColor: colors.surface,
     borderBottomWidth: 0.5,
