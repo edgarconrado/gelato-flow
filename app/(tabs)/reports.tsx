@@ -1,17 +1,20 @@
-// app/(tabs)/reports.tsx — Ink & Mint design
+// app/(tabs)/reports.tsx — con comparativa y gráfica tendencia · Ink & Mint
 import { useState } from 'react'
 import {
-  View, Text, StyleSheet, SafeAreaView as RNSafeArea,
-  ScrollView, TouchableOpacity, ActivityIndicator, Modal, FlatList,
+  View, Text, StyleSheet, ScrollView,
+  TouchableOpacity, ActivityIndicator, Modal, Dimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { useSalesReport, useSaleDetail } from '../../hooks/useData'
 import { Sale, DateFilter, PaymentMethod } from '../../lib/supabase'
 import { colors, radius, shadow } from '../../constants/theme'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
+
+const { width: SCREEN_W } = Dimensions.get('window')
+const CHART_W = SCREEN_W - 64  // padding de la card
 
 const FILTERS: { value: DateFilter; label: string }[] = [
   { value: 'day', label: 'Hoy' },
@@ -25,10 +28,12 @@ const PM_LABELS: Record<PaymentMethod, string> = {
 }
 
 export default function ReportsScreen() {
-  const router = useRouter()
-  const [filter, setFilter] = useState<DateFilter>('day')
+  const [filter, setFilter] = useState<DateFilter>('week')
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null)
   const { data, loading } = useSalesReport(filter)
+  const router = useRouter()
+
+  const comp = data?.comparison
 
   return (
     <SafeAreaView style={s.safe}>
@@ -39,17 +44,13 @@ export default function ReportsScreen() {
           <Text style={s.title}>Reportes</Text>
           <Text style={s.subtitle}>{format(new Date(), "dd 'de' MMMM", { locale: es })}</Text>
         </View>
-        <TouchableOpacity
-          style={s.cierrBtn}
-          onPress={() => router.push('/caja')}
-          activeOpacity={0.85}
-        >
+        <TouchableOpacity style={s.cierrBtn} onPress={() => router.push('/caja')} activeOpacity={0.85}>
           <Ionicons name="calculator-outline" size={15} color={colors.ink} />
           <Text style={s.cierrBtnText}>Cierre</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Filter pills */}
+      {/* Filtros */}
       <View style={s.filterRow}>
         {FILTERS.map(f => (
           <TouchableOpacity
@@ -58,49 +59,87 @@ export default function ReportsScreen() {
             onPress={() => setFilter(f.value)}
             activeOpacity={0.8}
           >
-            <Text style={[s.pillText, filter === f.value && s.pillTextActive]}>
-              {f.label}
-            </Text>
+            <Text style={[s.pillText, filter === f.value && s.pillTextActive]}>{f.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       {loading ? (
-        <View style={s.center}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
+        <View style={s.center}><ActivityIndicator color={colors.primary} /></View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
 
-          {/* KPIs */}
+          {/* ── KPIs con comparativa ───────────────────────── */}
           <View style={s.kpiRow}>
-            <View style={s.kpi}>
-              <Text style={s.kpiLabel}>INGRESOS</Text>
-              <Text style={s.kpiValue}>${(data?.total ?? 0).toFixed(2)}</Text>
-              <Text style={s.kpiSub}>{data?.count ?? 0} ventas</Text>
-            </View>
-            <View style={s.kpi}>
-              <Text style={s.kpiLabel}>TICKET PROM.</Text>
-              <Text style={s.kpiValue}>
-                ${((data?.total ?? 0) / Math.max(data?.count ?? 1, 1)).toFixed(2)}
-              </Text>
-              <Text style={s.kpiSub}>por venta</Text>
+            <KPICard
+              label="INGRESOS"
+              value={`$${(data?.total ?? 0).toFixed(2)}`}
+              pct={comp?.pctChangeTotal}
+              subLabel={comp ? `vs ${comp.previousLabel}` : undefined}
+              highlight
+            />
+            <View style={{ flex: 1, gap: 10 }}>
+              <KPICard
+                label="VENTAS"
+                value={`${data?.count ?? 0}`}
+                pct={comp?.pctChangeCount}
+                small
+              />
+              <KPICard
+                label="TICKET PROM."
+                value={`$${(data?.ticketPromedio ?? 0).toFixed(2)}`}
+                small
+              />
             </View>
           </View>
 
-          {/* Bar chart */}
-          {(data?.byDay?.length ?? 0) > 0 && (
+          {/* ── Gráfica de tendencia comparativa ──────────── */}
+          {(data?.trendData?.length ?? 0) > 0 && filter !== 'day' && (
             <View style={s.card}>
-              <Text style={s.cardTitle}>Ventas por día</Text>
-              <BarChart data={data!.byDay} />
+              <View style={s.cardHeaderRow}>
+                <Text style={s.cardTitle}>Tendencia</Text>
+                <View style={s.legendRow}>
+                  <View style={s.legendItem}>
+                    <View style={[s.legendDot, { backgroundColor: colors.primary }]} />
+                    <Text style={s.legendLabel}>Este período</Text>
+                  </View>
+                  <View style={s.legendItem}>
+                    <View style={[s.legendDot, { backgroundColor: 'rgba(152,152,176,0.4)' }]} />
+                    <Text style={s.legendLabel}>{comp?.previousLabel ?? 'Anterior'}</Text>
+                  </View>
+                </View>
+              </View>
+              <TrendChart data={data.trendData} />
             </View>
           )}
 
-          {/* Top products */}
+          {/* ── Comparativa detallada ─────────────────────── */}
+          {comp && (
+            <View style={s.card}>
+              <Text style={s.cardTitle}>vs {comp.previousLabel}</Text>
+              <View style={s.compRow}>
+                <CompItem
+                  label="Ingresos"
+                  current={`$${comp.currentTotal.toFixed(2)}`}
+                  previous={`$${comp.previousTotal.toFixed(2)}`}
+                  pct={comp.pctChangeTotal}
+                />
+                <View style={s.compDivider} />
+                <CompItem
+                  label="Ventas"
+                  current={`${comp.currentCount}`}
+                  previous={`${comp.previousCount}`}
+                  pct={comp.pctChangeCount}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* ── Top productos ─────────────────────────────── */}
           {(data?.topProducts?.length ?? 0) > 0 && (
             <View style={s.card}>
               <Text style={s.cardTitle}>Más vendidos</Text>
-              {data!.topProducts.map((p, i) => (
+              {data.topProducts.map((p: any, i: number) => (
                 <View key={p.name} style={s.topRow}>
                   <View style={[s.rankBadge, i === 0 && s.rankBadgeGold]}>
                     <Text style={s.rankText}>{i + 1}</Text>
@@ -115,11 +154,11 @@ export default function ReportsScreen() {
             </View>
           )}
 
-          {/* Recent sales */}
+          {/* ── Ventas recientes ──────────────────────────── */}
           {(data?.recentSales?.length ?? 0) > 0 && (
             <View style={s.card}>
               <Text style={s.cardTitle}>Ventas recientes</Text>
-              {data!.recentSales.map(sale => (
+              {data.recentSales.map((sale: any) => (
                 <TouchableOpacity
                   key={sale.id}
                   style={s.saleRow}
@@ -127,10 +166,8 @@ export default function ReportsScreen() {
                   activeOpacity={0.7}
                 >
                   <View style={s.saleLeft}>
-                    <Text style={s.saleTime}>
-                      {format(new Date(sale.created_at), 'dd/MM · HH:mm')}
-                    </Text>
-                    <Text style={s.saleMethod}>{PM_LABELS[sale.payment_method]}</Text>
+                    <Text style={s.saleTime}>{format(new Date(sale.created_at), 'dd/MM · HH:mm')}</Text>
+                    <Text style={s.saleMethod}>{PM_LABELS[sale.payment_method as PaymentMethod]}</Text>
                   </View>
                   <Text style={s.saleTotal}>${sale.total.toFixed(2)}</Text>
                   <Ionicons name="chevron-forward" size={14} color={colors.inkMuted} />
@@ -141,116 +178,162 @@ export default function ReportsScreen() {
 
           {(!data || data.count === 0) && (
             <View style={s.empty}>
-              <Text style={s.emptyEmoji}>📊</Text>
-              <Text style={s.emptyText}>Sin ventas en este periodo</Text>
+              <Text style={{ fontSize: 40 }}>📊</Text>
+              <Text style={s.emptyText}>Sin ventas en este período</Text>
             </View>
           )}
 
         </ScrollView>
       )}
 
-      {/* Ticket modal */}
       <TicketModal saleId={selectedSaleId} onClose={() => setSelectedSaleId(null)} />
-
     </SafeAreaView>
   )
 }
 
-function BarChart({ data }: { data: { date: string; total: number }[] }) {
-  const max = Math.max(...data.map(d => d.total), 1)
+// ─── KPI Card con indicador de cambio ────────────────────────
+
+function KPICard({ label, value, pct, subLabel, highlight, small }: {
+  label: string; value: string; pct?: number
+  subLabel?: string; highlight?: boolean; small?: boolean
+}) {
+  const up = (pct ?? 0) >= 0
+  const hasData = pct !== undefined && pct !== null
+
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 100, gap: 6, marginTop: 12 }}>
-      {data.map(d => {
-        const pct = Math.max((d.total / max) * 100, 4)
-        const isToday = d.date === format(new Date(), 'yyyy-MM-dd')
-        return (
-          <View key={d.date} style={{ flex: 1, alignItems: 'center', height: '100%' }}>
-            <Text style={{ fontSize: 9, color: colors.inkMuted, marginBottom: 3 }}>
-              ${d.total >= 1000 ? `${(d.total / 1000).toFixed(1)}k` : d.total.toFixed(0)}
-            </Text>
-            <View style={{ flex: 1, width: '100%', justifyContent: 'flex-end' }}>
-              <View style={{
-                width: '100%', borderRadius: 4,
-                height: `${pct}%`,
-                backgroundColor: isToday ? colors.primary : colors.primaryLight,
-              }} />
-            </View>
-            <Text style={{ fontSize: 9, color: isToday ? colors.ink : colors.inkMuted, marginTop: 4, fontWeight: isToday ? '600' : '400' }}>
-              {format(new Date(d.date + 'T12:00:00'), 'dd/MM')}
-            </Text>
-          </View>
-        )
-      })}
+    <View style={[s.kpi, highlight && s.kpiHighlight, small && s.kpiSmall]}>
+      <Text style={[s.kpiLabel, highlight && s.kpiLabelH]}>{label}</Text>
+      <Text style={[s.kpiValue, highlight && s.kpiValueH, small && s.kpiValueS]}>
+        {value}
+      </Text>
+      {hasData && (
+        <View style={s.kpiPct}>
+          <Ionicons
+            name={up ? 'trending-up' : 'trending-down'}
+            size={12}
+            color={up ? colors.primary : colors.accent}
+          />
+          <Text style={[s.kpiPctText, { color: up ? colors.primary : colors.accent }]}>
+            {up ? '+' : ''}{pct!.toFixed(1)}%
+          </Text>
+          {subLabel && <Text style={s.kpiSub}>{subLabel}</Text>}
+        </View>
+      )}
     </View>
   )
 }
 
-function TicketModal({ saleId, onClose }: { saleId: string | null; onClose: () => void }) {
-  const { sale, loading } = useSaleDetail(saleId)
+// ─── Gráfica de tendencia comparativa ────────────────────────
+
+function TrendChart({ data }: {
+  data: { label: string; currentVal: number; previousVal: number }[]
+}) {
+  const maxVal = Math.max(...data.map(d => Math.max(d.currentVal, d.previousVal)), 1)
+  // Mostrar máximo 14 puntos para legibilidad
+  const visible = data.length > 14 ? data.filter((_, i) => i % Math.ceil(data.length / 14) === 0) : data
 
   return (
-    <Modal visible={!!saleId} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={s.modalSafe}>
+    <View style={{ marginTop: 16 }}>
+      {/* Líneas de referencia */}
+      <View style={s.chartArea}>
+        {[0.75, 0.5, 0.25].map(pct => (
+          <View key={pct} style={[s.gridLine, { bottom: `${pct * 100}%` }]}>
+            <Text style={s.gridLabel}>${((maxVal * pct) / 1000).toFixed(maxVal > 1000 ? 1 : 0)}{maxVal > 1000 ? 'k' : ''}</Text>
+          </View>
+        ))}
 
-        {/* Ticket header */}
-        <View style={s.ticketTop}>
-          <TouchableOpacity onPress={onClose} style={s.closeBtn}>
-            <Ionicons name="close" size={22} color={colors.inkMid} />
-          </TouchableOpacity>
-          <Text style={s.ticketBrand}>GELATO FLOW</Text>
-          {sale && (
-            <Text style={s.ticketFolio}>#{sale.id.slice(0, 8).toUpperCase()}</Text>
-          )}
-          <Text style={s.ticketClose} onPress={onClose}>Cerrar</Text>
+        {/* Barras */}
+        <View style={s.barsRow}>
+          {visible.map((d, i) => {
+            const curH = maxVal > 0 ? (d.currentVal / maxVal) * 100 : 0
+            const prevH = maxVal > 0 ? (d.previousVal / maxVal) * 100 : 0
+            const showLabel = visible.length <= 7 || i % Math.ceil(visible.length / 7) === 0
+
+            return (
+              <View key={i} style={s.barGroup}>
+                <View style={s.barPair}>
+                  {/* Barra período anterior */}
+                  <View style={[s.barPrev, { height: `${Math.max(prevH, 2)}%` }]} />
+                  {/* Barra período actual */}
+                  <View style={[s.barCurr, { height: `${Math.max(curH, 2)}%` }]} />
+                </View>
+                {showLabel && (
+                  <Text style={s.barLabel} numberOfLines={1}>{d.label}</Text>
+                )}
+              </View>
+            )
+          })}
         </View>
+      </View>
+    </View>
+  )
+}
 
+// ─── Comparativa item ─────────────────────────────────────────
+
+function CompItem({ label, current, previous, pct }: {
+  label: string; current: string; previous: string; pct: number
+}) {
+  const up = pct >= 0
+  return (
+    <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+      <Text style={s.compLabel}>{label}</Text>
+      <Text style={s.compCurrent}>{current}</Text>
+      <Text style={s.compPrevious}>{previous} ant.</Text>
+      <View style={[s.compBadge, { backgroundColor: up ? `${colors.primary}18` : `${colors.accent}18` }]}>
+        <Ionicons name={up ? 'arrow-up' : 'arrow-down'} size={10} color={up ? colors.primary : colors.accent} />
+        <Text style={[s.compBadgeText, { color: up ? colors.primary : colors.accent }]}>
+          {up ? '+' : ''}{pct.toFixed(1)}%
+        </Text>
+      </View>
+    </View>
+  )
+}
+
+// ─── Ticket modal ─────────────────────────────────────────────
+
+function TicketModal({ saleId, onClose }: { saleId: string | null; onClose: () => void }) {
+  const { sale, loading } = useSaleDetail(saleId)
+  return (
+    <Modal visible={!!saleId} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={s.safe}>
+        <View style={[s.header, { paddingVertical: 12 }]}>
+          <TouchableOpacity onPress={onClose}>
+            <Ionicons name="close" size={22} color="rgba(255,255,255,0.7)" />
+          </TouchableOpacity>
+          <Text style={[s.title, { flex: 1, textAlign: 'center', fontSize: 16 }]}>
+            {sale ? `#${sale.id.slice(0, 8).toUpperCase()}` : 'Ticket'}
+          </Text>
+          <View style={{ width: 22 }} />
+        </View>
         {loading ? (
           <View style={s.center}><ActivityIndicator color={colors.primary} /></View>
         ) : !sale ? null : (
-          <ScrollView contentContainerStyle={{ padding: 24, gap: 16 }}>
-
-            {/* Meta */}
-            <View style={s.ticketMeta}>
-              <Text style={s.ticketDate}>
-                {format(new Date(sale.created_at), "dd 'de' MMMM, HH:mm 'hrs'", { locale: es })}
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }}>
+            <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+              <Text style={s.saleTime}>{format(new Date(sale.created_at), "dd/MM/yyyy · HH:mm 'hrs'")}</Text>
+              <Text style={[s.kpiLabel, { backgroundColor: colors.primaryLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill }]}>
+                {PM_LABELS[sale.payment_method as PaymentMethod]}
               </Text>
-              <View style={s.pmBadge}>
-                <Text style={s.pmBadgeText}>{PM_LABELS[sale.payment_method]}</Text>
-              </View>
             </View>
-
-            {/* Line items */}
-            <View style={s.ticketItems}>
-              <View style={s.ticketItemHeader}>
-                <Text style={[s.ticketCol, { flex: 3 }]}>Producto</Text>
-                <Text style={[s.ticketCol, { width: 30, textAlign: 'center' }]}>Cant</Text>
-                <Text style={[s.ticketCol, { width: 60, textAlign: 'right' }]}>Precio</Text>
-                <Text style={[s.ticketCol, { width: 68, textAlign: 'right' }]}>Total</Text>
+            <View style={s.card}>
+              <View style={[s.topRow, { paddingBottom: 10, borderBottomWidth: 0.5, borderBottomColor: colors.border }]}>
+                <Text style={[s.kpiLabel, { flex: 3 }]}>PRODUCTO</Text>
+                <Text style={[s.kpiLabel, { width: 30, textAlign: 'center' }]}>CANT</Text>
+                <Text style={[s.kpiLabel, { width: 70, textAlign: 'right' }]}>TOTAL</Text>
               </View>
-              {(sale.sale_items ?? []).map(item => (
-                <View key={item.id} style={s.ticketItemRow}>
-                  <Text style={[s.ticketItemName, { flex: 3 }]} numberOfLines={2}>
-                    {item.product?.name ?? 'Producto'}
-                  </Text>
-                  <Text style={[s.ticketItemVal, { width: 30, textAlign: 'center' }]}>
-                    {item.quantity}
-                  </Text>
-                  <Text style={[s.ticketItemVal, { width: 60, textAlign: 'right' }]}>
-                    ${item.unit_price.toFixed(2)}
-                  </Text>
-                  <Text style={[s.ticketItemVal, { width: 68, textAlign: 'right', fontWeight: '600' }]}>
-                    ${item.subtotal.toFixed(2)}
-                  </Text>
+              {(sale.sale_items ?? []).map((item: any) => (
+                <View key={item.id} style={[s.topRow, { paddingVertical: 10 }]}>
+                  <Text style={[s.topName, { flex: 3 }]} numberOfLines={2}>{item.product?.name}</Text>
+                  <Text style={[s.topQty, { width: 30, textAlign: 'center', color: colors.ink }]}>{item.quantity}</Text>
+                  <Text style={[s.topRevenue, { width: 70, textAlign: 'right' }]}>${(item.subtotal ?? item.unit_price * item.quantity).toFixed(2)}</Text>
                 </View>
               ))}
             </View>
-
-            {/* Total */}
-            <View style={s.ticketTotalRow}>
-              <Text style={s.ticketTotalLabel}>Total</Text>
-              <Text style={s.ticketTotalAmount}>${sale.total.toFixed(2)}</Text>
+            <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+              <Text style={s.cardTitle}>Total</Text>
+              <Text style={[s.kpiValue, { color: colors.primary, fontSize: 26 }]}>${sale.total.toFixed(2)}</Text>
             </View>
-
           </ScrollView>
         )}
       </SafeAreaView>
@@ -258,29 +341,33 @@ function TicketModal({ saleId, onClose }: { saleId: string | null; onClose: () =
   )
 }
 
+// ─── Estilos ─────────────────────────────────────────────────
+
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
     backgroundColor: colors.ink,
     paddingHorizontal: 20, paddingVertical: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    ...shadow.header,
   },
   title: { fontSize: 22, fontWeight: '600', color: '#fff', letterSpacing: -0.5 },
   subtitle: { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 },
-
   cierrBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: colors.primary,
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: radius.md,
   },
   cierrBtnText: { color: colors.ink, fontWeight: '700', fontSize: 13 },
+
   filterRow: {
-    flexDirection: 'row', padding: 16, gap: 8,
+    flexDirection: 'row', padding: 14, gap: 8,
     backgroundColor: colors.ink,
     borderBottomLeftRadius: 20, borderBottomRightRadius: 20,
     ...shadow.header,
   },
   pill: {
-    flex: 1, paddingVertical: 9, borderRadius: radius.pill,
+    flex: 1, paddingVertical: 8, borderRadius: radius.pill,
     alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)',
   },
   pillActive: { backgroundColor: colors.primary },
@@ -289,94 +376,90 @@ const s = StyleSheet.create({
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  kpiRow: { flexDirection: 'row', gap: 12 },
+  // KPIs
+  kpiRow: { flexDirection: 'row', gap: 12, height: 130 },
   kpi: {
-    flex: 1, backgroundColor: colors.surface,
-    borderRadius: radius.lg, padding: 16,
-    borderWidth: 0.5, borderColor: colors.border,
-    ...shadow.sm,
+    flex: 1, backgroundColor: colors.surface, borderRadius: radius.lg,
+    padding: 14, borderWidth: 0.5, borderColor: colors.border,
+    justifyContent: 'space-between', ...shadow.sm,
   },
-  kpiLabel: { fontSize: 10, fontWeight: '600', color: colors.inkMuted, letterSpacing: 0.06, marginBottom: 6 },
-  kpiValue: { fontSize: 22, fontWeight: '600', color: colors.ink, letterSpacing: -0.4 },
-  kpiSub: { fontSize: 11, color: colors.primary, marginTop: 4 },
+  kpiHighlight: { backgroundColor: colors.ink, borderColor: colors.ink },
+  kpiSmall: { padding: 10 },
+  kpiLabel: { fontSize: 10, fontWeight: '600', color: colors.inkMuted, letterSpacing: 0.06 },
+  kpiLabelH: { color: 'rgba(255,255,255,0.45)' },
+  kpiValue: { fontSize: 20, fontWeight: '700', color: colors.ink, letterSpacing: -0.4 },
+  kpiValueH: { color: colors.primary, fontSize: 22 },
+  kpiValueS: { fontSize: 16 },
+  kpiPct: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  kpiPctText: { fontSize: 11, fontWeight: '600' },
+  kpiSub: { fontSize: 10, color: 'rgba(255,255,255,0.35)', marginLeft: 2 },
 
+  // Card
   card: {
     backgroundColor: colors.surface, borderRadius: radius.lg,
-    padding: 18, borderWidth: 0.5, borderColor: colors.border,
-    ...shadow.sm,
+    padding: 16, borderWidth: 0.5, borderColor: colors.border, ...shadow.sm,
   },
-  cardTitle: { fontSize: 14, fontWeight: '600', color: colors.ink, marginBottom: 4 },
+  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  cardTitle: { fontSize: 14, fontWeight: '600', color: colors.ink },
 
-  topRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 10, borderTopWidth: 0.5, borderTopColor: colors.border,
+  // Legend
+  legendRow: { flexDirection: 'row', gap: 12 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendLabel: { fontSize: 11, color: colors.inkMuted },
+
+  // Trend chart
+  chartArea: {
+    height: 130, position: 'relative',
+    borderBottomWidth: 0.5, borderBottomColor: colors.border,
+    marginTop: 8,
   },
-  rankBadge: {
-    width: 28, height: 28, borderRadius: 8,
-    backgroundColor: colors.background,
-    alignItems: 'center', justifyContent: 'center',
+  gridLine: {
+    position: 'absolute', left: 0, right: 0,
+    borderTopWidth: 0.5, borderTopColor: `${colors.border}`,
+    flexDirection: 'row',
   },
+  gridLabel: { fontSize: 9, color: colors.inkMuted, marginLeft: 2, marginTop: -10 },
+  barsRow: { flexDirection: 'row', alignItems: 'flex-end', height: '100%', gap: 2, paddingTop: 8 },
+  barGroup: { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end' },
+  barPair: { flexDirection: 'row', alignItems: 'flex-end', gap: 1, width: '100%', height: '85%' },
+  barPrev: {
+    flex: 1, borderRadius: 2,
+    backgroundColor: 'rgba(152,152,176,0.3)',
+    minHeight: 2,
+  },
+  barCurr: {
+    flex: 1, borderRadius: 2,
+    backgroundColor: colors.primary,
+    minHeight: 2,
+  },
+  barLabel: { fontSize: 8, color: colors.inkMuted, marginTop: 4, textAlign: 'center' },
+
+  // Comparativa
+  compRow: { flexDirection: 'row', marginTop: 12 },
+  compDivider: { width: 0.5, backgroundColor: colors.border, marginVertical: 4 },
+  compLabel: { fontSize: 11, color: colors.inkMuted, fontWeight: '500' },
+  compCurrent: { fontSize: 20, fontWeight: '700', color: colors.ink, letterSpacing: -0.3 },
+  compPrevious: { fontSize: 12, color: colors.inkMuted },
+  compBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill },
+  compBadgeText: { fontSize: 11, fontWeight: '600' },
+
+  // Top
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: 0.5, borderTopColor: colors.border },
+  rankBadge: { width: 26, height: 26, borderRadius: 7, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
   rankBadgeGold: { backgroundColor: colors.primary },
-  rankText: { fontSize: 12, fontWeight: '700', color: colors.inkMid },
+  rankText: { fontSize: 11, fontWeight: '700', color: colors.inkMid },
   topName: { fontSize: 13, fontWeight: '500', color: colors.ink },
   topQty: { fontSize: 11, color: colors.inkMuted, marginTop: 1 },
   topRevenue: { fontSize: 14, fontWeight: '600', color: colors.ink },
 
-  saleRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 11, borderTopWidth: 0.5, borderTopColor: colors.border,
-  },
+  // Sales
+  saleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, borderTopWidth: 0.5, borderTopColor: colors.border },
   saleLeft: { flex: 1 },
   saleTime: { fontSize: 13, fontWeight: '500', color: colors.ink },
   saleMethod: { fontSize: 11, color: colors.inkMuted, marginTop: 1 },
   saleTotal: { fontSize: 15, fontWeight: '600', color: colors.ink },
 
   empty: { alignItems: 'center', paddingVertical: 60, gap: 10 },
-  emptyEmoji: { fontSize: 40 },
   emptyText: { fontSize: 15, color: colors.inkMuted },
-
-  // Modal / Ticket
-  modalSafe: { flex: 1, backgroundColor: colors.background },
-  ticketTop: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 16,
-    backgroundColor: colors.ink,
-  },
-  closeBtn: { padding: 4 },
-  ticketBrand: { fontSize: 12, fontWeight: '700', color: colors.primary, letterSpacing: 0.1 },
-  ticketFolio: { fontSize: 14, fontWeight: '600', color: '#fff', fontVariant: ['tabular-nums'] },
-  ticketClose: { fontSize: 14, color: 'rgba(255,255,255,0.4)' },
-
-  ticketMeta: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: colors.surface, borderRadius: radius.lg, padding: 16,
-    borderWidth: 0.5, borderColor: colors.border,
-  },
-  ticketDate: { fontSize: 13, color: colors.inkMid },
-  pmBadge: {
-    backgroundColor: colors.primaryLight, paddingHorizontal: 12, paddingVertical: 5,
-    borderRadius: radius.pill,
-  },
-  pmBadgeText: { fontSize: 12, fontWeight: '500', color: colors.primaryDark },
-
-  ticketItems: {
-    backgroundColor: colors.surface, borderRadius: radius.lg,
-    padding: 16, borderWidth: 0.5, borderColor: colors.border, gap: 4,
-  },
-  ticketItemHeader: {
-    flexDirection: 'row', paddingBottom: 10,
-    borderBottomWidth: 0.5, borderBottomColor: colors.border,
-  },
-  ticketCol: { fontSize: 11, fontWeight: '600', color: colors.inkMuted, letterSpacing: 0.04 },
-  ticketItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7 },
-  ticketItemName: { fontSize: 13, color: colors.inkMid },
-  ticketItemVal: { fontSize: 13, color: colors.ink },
-
-  ticketTotalRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: colors.surface, borderRadius: radius.lg, padding: 20,
-    borderWidth: 0.5, borderColor: colors.border,
-  },
-  ticketTotalLabel: { fontSize: 16, fontWeight: '500', color: colors.inkMid },
-  ticketTotalAmount: { fontSize: 32, fontWeight: '600', color: colors.primary, letterSpacing: -0.5 },
 })
