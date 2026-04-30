@@ -45,6 +45,7 @@ function RootGuard() {
         <Stack.Screen name="team/index" options={{ headerShown: false }} />
         <Stack.Screen name="caja/index" options={{ headerShown: false }} />
         <Stack.Screen name="stock/index" options={{ headerShown: false }} />
+        <Stack.Screen name="gastos/index" options={{ headerShown: false }} />
       </Stack>
 
       {/* Splash animado encima de todo — desaparece cuando auth termina de cargar */}

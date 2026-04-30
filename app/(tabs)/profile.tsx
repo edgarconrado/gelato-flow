@@ -190,6 +190,28 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* ── Gastos (solo owner) ─────────────────────────────── */}
+        {profile?.role === 'owner' && (
+          <View style={s.section}>
+            <TouchableOpacity
+              style={s.teamBtn}
+              onPress={() => router.push('/gastos')}
+              activeOpacity={0.8}
+            >
+              <View style={s.teamBtnLeft}>
+                <View style={[s.teamIconWrap, { backgroundColor: `${colors.accent}18` }]}>
+                  <Ionicons name="wallet-outline" size={18} color={colors.accent} />
+                </View>
+                <View>
+                  <Text style={s.teamBtnTitle}>Gastos del negocio</Text>
+                  <Text style={s.teamBtnSub}>Ingredientes, renta, servicios…</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.inkMuted} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* ── Equipo (solo owner) ─────────────────────────────── */}
         {profile?.role === 'owner' && (
           <View style={s.section}>

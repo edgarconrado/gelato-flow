@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useSalesReport, useSaleDetail } from '../../hooks/useData'
+import { useExpenses } from '../../hooks/useExpenses'
 import { Sale, DateFilter, PaymentMethod } from '../../lib/supabase'
 import { colors, radius, shadow } from '../../constants/theme'
 
@@ -31,6 +32,7 @@ export default function ReportsScreen() {
   const [filter, setFilter] = useState<DateFilter>('week')
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null)
   const { data, loading } = useSalesReport(filter)
+  const { total: totalGastos } = useExpenses(filter)
   const router = useRouter()
 
   const comp = data?.comparison
@@ -92,6 +94,37 @@ export default function ReportsScreen() {
               />
             </View>
           </View>
+
+          {/* ── Utilidad neta ─────────────────────────────── */}
+          <View style={s.utilidadCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.utilidadLabel}>INGRESOS</Text>
+              <Text style={s.utilidadIngresos}>${(data?.total ?? 0).toFixed(2)}</Text>
+            </View>
+            <Ionicons name="remove" size={20} color="rgba(255,255,255,0.3)" />
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={s.utilidadLabel}>GASTOS</Text>
+              <Text style={s.utilidadGastos}>−${totalGastos.toFixed(2)}</Text>
+            </View>
+            <Ionicons name="remove" size={20} color="rgba(255,255,255,0.3)" style={{ transform: [{ rotate: '90deg' }] }} />
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <Text style={s.utilidadLabel}>UTILIDAD</Text>
+              <Text style={[s.utilidadNeta, { color: ((data?.total ?? 0) - totalGastos) >= 0 ? colors.primary : colors.accent }]}>
+                ${((data?.total ?? 0) - totalGastos).toFixed(2)}
+              </Text>
+            </View>
+          </View>
+
+          {/* Botón ver gastos */}
+          <TouchableOpacity
+            style={s.gastosBtn}
+            onPress={() => router.push('/gastos')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="wallet-outline" size={16} color={colors.inkMid} />
+            <Text style={s.gastosBtnText}>Ver y registrar gastos</Text>
+            <Ionicons name="chevron-forward" size={14} color={colors.inkMuted} style={{ marginLeft: 'auto' }} />
+          </TouchableOpacity>
 
           {/* ── Gráfica de tendencia comparativa ──────────── */}
           {(data?.trendData?.length ?? 0) > 0 && filter !== 'day' && (
@@ -462,6 +495,24 @@ const s = StyleSheet.create({
   saleMethod: { fontSize: 11, color: colors.inkMuted, marginTop: 1 },
   saleTotal: { fontSize: 15, fontWeight: '600', color: colors.ink },
 
+  utilidadCard: {
+    backgroundColor: colors.ink,
+    borderRadius: radius.lg, padding: 16,
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.08)',
+    ...shadow.header,
+  },
+  utilidadLabel: { fontSize: 9, fontWeight: '600', color: 'rgba(255,255,255,0.4)', letterSpacing: 0.06, marginBottom: 4 },
+  utilidadIngresos: { fontSize: 15, fontWeight: '700', color: '#fff', letterSpacing: -0.3 },
+  utilidadGastos: { fontSize: 15, fontWeight: '700', color: colors.accent, letterSpacing: -0.3 },
+  utilidadNeta: { fontSize: 15, fontWeight: '700', letterSpacing: -0.3 },
+  gastosBtn: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg, padding: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 0.5, borderColor: colors.border, ...shadow.sm,
+  },
+  gastosBtnText: { fontSize: 14, fontWeight: '500', color: colors.inkMid },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 10 },
   emptyText: { fontSize: 15, color: colors.inkMuted },
 })
