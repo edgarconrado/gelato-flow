@@ -70,7 +70,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         product_id: i.product.id,
         quantity: i.quantity,
         unit_price: i.product.price,
-        subtotal: i.product.price * i.quantity,
+        // subtotal es columna generada en la BD (quantity * unit_price)
+        // no se inserta manualmente
       })))
 
     if (itemsError) return { error: itemsError.message, saleId: null }
