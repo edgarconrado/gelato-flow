@@ -5,7 +5,6 @@ import {
   ActivityIndicator, ScrollView,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Image } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
