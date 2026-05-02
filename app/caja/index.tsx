@@ -126,7 +126,7 @@ export default function CierreCajaScreen() {
                     <Text style={s.emptyDesc}>Cuando registres ventas aparecerán aquí el cierre del día.</Text>
                 </View>
             ) : (
-                <ScrollView contentContainerStyle={s.body}>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.body}>
 
                     {/* Tienda y fecha */}
                     <View style={s.storeCard}>

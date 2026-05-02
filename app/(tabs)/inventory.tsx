@@ -94,7 +94,8 @@ export default function InventoryScreen() {
       <FlatList
         data={filtered}
         keyExtractor={p => p.id}
-        contentContainerStyle={{ padding: 16, gap: 10 }}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 90 }}
+        showsVerticalScrollIndicator={false}
         refreshing={loading}
         onRefresh={refetch}
         renderItem={({ item }) => (

@@ -240,7 +240,7 @@ function AddExpenseModal({ visible, onClose, onSaved, storeId, userId }: {
                     <View style={{ width: 22 }} />
                 </View>
 
-                <ScrollView contentContainerStyle={{ padding: 24, gap: 4 }} keyboardShouldPersistTaps="handled">
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24, gap: 4, paddingBottom: 90 }} keyboardShouldPersistTaps="handled">
 
                     {/* Monto grande */}
                     <View style={s.amountWrap}>

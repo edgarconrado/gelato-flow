@@ -7,7 +7,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Image } from 'expo-image'
-import * as ImagePicker from 'expo-image-picker'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase, Product } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -57,6 +56,13 @@ export default function ProductFormScreen() {
 
   // ── Seleccionar y subir imagen ─────────────────────────────
   const handlePickImage = async () => {
+    let ImagePicker: any
+    try {
+      ImagePicker = await import('expo-image-picker')
+    } catch {
+      Alert.alert('Error', 'El selector de imágenes no está disponible en este dispositivo.')
+      return
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
       Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.')

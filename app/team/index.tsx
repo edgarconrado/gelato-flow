@@ -139,7 +139,7 @@ export default function TeamScreen() {
             {loading ? (
                 <View style={s.center}><ActivityIndicator color={colors.primary} /></View>
             ) : (
-                <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 20, paddingBottom: 90 }}>
 
                     {/* Miembros activos */}
                     <View>
@@ -379,7 +379,7 @@ function InviteModal({ visible, storeId, onClose, onSuccess }: {
                     <View style={{ width: 22 }} />
                 </View>
 
-                <ScrollView contentContainerStyle={{ padding: 24, gap: 8 }}>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24, gap: 8, paddingBottom: 90 }}>
 
                     <Text style={s.sectionLabel}>CORREO ELECTRÓNICO</Text>
                     <TextInput

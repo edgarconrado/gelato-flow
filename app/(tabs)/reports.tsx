@@ -69,7 +69,7 @@ export default function ReportsScreen() {
       {loading ? (
         <View style={s.center}><ActivityIndicator color={colors.primary} /></View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 90 }}>
 
           {/* ── KPIs con comparativa ───────────────────────── */}
           <View style={s.kpiRow}>
@@ -344,7 +344,7 @@ function TicketModal({ saleId, onClose }: { saleId: string | null; onClose: () =
         {loading ? (
           <View style={s.center}><ActivityIndicator color={colors.primary} /></View>
         ) : !sale ? null : (
-          <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 90 }}>
             <View style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
               <Text style={s.saleTime}>{format(new Date(sale.created_at), "dd/MM/yyyy · HH:mm 'hrs'")}</Text>
               <Text style={[s.kpiLabel, { backgroundColor: colors.primaryLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill }]}>
