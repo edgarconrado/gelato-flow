@@ -5,7 +5,6 @@ import {
   Alert, ActivityIndicator, ScrollView, Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import * as ImagePicker from 'expo-image-picker'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useAuth } from '../../context/AuthContext'
@@ -51,6 +50,8 @@ export default function ProfileScreen() {
 
   const handlePickAvatar = async () => {
     try {
+      // Import dinámico para evitar crash si el módulo nativo no está disponible
+      const ImagePicker = await import('expo-image-picker')
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (status !== 'granted') {
         Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.')
