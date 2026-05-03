@@ -24,6 +24,7 @@ export default {
     },
     android: {
       package: 'com.jacarandalab.gelatoflow',
+      versionCode: 2,
       edgeToEdgeEnabled: true,
       permissions: [
         'android.permission.READ_MEDIA_IMAGES',
