@@ -1,18 +1,17 @@
-// app/inventory/form.tsx — Formulario de producto con foto · Ink & Mint
+// app/inventory/form.tsx — Formulario de producto con foto
 import { useState, useEffect } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator,
+  ScrollView, Alert, ActivityIndicator, Image,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
-import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase, Product } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useCategories } from '../../hooks/useData'
 import { notify } from '../../hooks/useNotifications'
-import { colors, radius, shadow } from '../../constants/theme'
+import { colors, radius } from '../../constants/theme'
 
 export default function ProductFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>()
@@ -27,7 +26,7 @@ export default function ProductFormScreen() {
   const [stock, setStock] = useState('')
   const [minStock, setMinStock] = useState('5')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [localImageUri, setLocalImageUri] = useState<string | null>(null)
+  const [localUri, setLocalUri] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(isEditing)
@@ -56,73 +55,56 @@ export default function ProductFormScreen() {
 
   // ── Seleccionar y subir imagen ─────────────────────────────
   const handlePickImage = async () => {
-    let ImagePicker: any
     try {
-      ImagePicker = await import('expo-image-picker')
-    } catch {
-      Alert.alert('Error', 'El selector de imágenes no está disponible en este dispositivo.')
-      return
-    }
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-    if (status !== 'granted') {
-      Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.')
-      return
-    }
+      // Import dinámico para evitar crash si el módulo no está disponible
+      const ImagePicker = await import('expo-image-picker')
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.75,
-    })
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+      if (status !== 'granted') {
+        Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.')
+        return
+      }
 
-    if (result.canceled || !result.assets[0]) return
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'images',
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.75,
+      })
 
-    const asset = result.assets[0]
-    setLocalImageUri(asset.uri) // Mostrar inmediatamente
-    setUploading(true)
+      if (result.canceled || !result.assets[0]) return
 
-    try {
+      const asset = result.assets[0]
+      setLocalUri(asset.uri)
+      setUploading(true)
+
       const response = await fetch(asset.uri)
       const arrayBuffer = await response.arrayBuffer()
       const ext = asset.mimeType === 'image/png' ? 'png' : 'jpg'
-      const mimeType = asset.mimeType ?? 'image/jpeg'
-
-      // Path: products/{store_id}/{timestamp}.{ext}
       const filePath = `${profile!.store_id}/${Date.now()}.${ext}`
 
       const { error: uploadError } = await supabase.storage
         .from('products')
-        .upload(filePath, arrayBuffer, { contentType: mimeType, upsert: true })
+        .upload(filePath, arrayBuffer, {
+          contentType: asset.mimeType ?? 'image/jpeg',
+          upsert: true,
+        })
 
       if (uploadError) throw uploadError
 
       const { data: urlData } = supabase.storage
-        .from('products')
-        .getPublicUrl(filePath)
+        .from('products').getPublicUrl(filePath)
 
       const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`
       setImageUrl(publicUrl)
-      setLocalImageUri(publicUrl)
+      setLocalUri(publicUrl)
 
     } catch (err: any) {
-      Alert.alert('Error al subir imagen', err?.message ?? 'Intenta de nuevo')
-      setLocalImageUri(null)
+      Alert.alert('Error', err?.message ?? 'No se pudo subir la imagen.')
+      setLocalUri(null)
     } finally {
       setUploading(false)
     }
-  }
-
-  const handleRemoveImage = () => {
-    Alert.alert('Quitar foto', '¿Eliminar la foto del producto?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Quitar', style: 'destructive', onPress: () => {
-          setImageUrl(null)
-          setLocalImageUri(null)
-        }
-      },
-    ])
   }
 
   // ── Guardar producto ───────────────────────────────────────
@@ -136,7 +118,6 @@ export default function ProductFormScreen() {
 
     setLoading(true)
 
-    // Derivar type desde categoría
     const selectedCat = categories.find(c => c.id === categoryId)
     const catName = selectedCat?.name?.toLowerCase() ?? ''
     const typeMap: Record<string, string> = {
@@ -156,8 +137,8 @@ export default function ProductFormScreen() {
       stock: stockNum,
       store_id: profile!.store_id,
       type: derivedType,
-      image_url: imageUrl ?? null,
       min_stock: parseInt(minStock) || 5,
+      image_url: imageUrl ?? null,
     }
 
     const { error } = isEditing
@@ -186,7 +167,7 @@ export default function ProductFormScreen() {
     )
   }
 
-  const displayUri = localImageUri ?? imageUrl
+  const displayUri = localUri ?? imageUrl
 
   return (
     <SafeAreaView style={s.safe}>
@@ -194,44 +175,50 @@ export default function ProductFormScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="close" size={22} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
-        <Text style={s.toolbarTitle}>{isEditing ? 'Editar producto' : 'Nuevo producto'}</Text>
+        <Text style={s.toolbarTitle}>
+          {isEditing ? 'Editar producto' : 'Nuevo producto'}
+        </Text>
         <View style={{ width: 22 }} />
       </View>
 
-      <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={s.body}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
 
-        {/* ── Foto del producto ─────────────────────────────── */}
+        {/* ── Foto ─────────────────────────────────────────── */}
         <View style={s.imageSection}>
           <TouchableOpacity
             style={s.imageWrap}
             onPress={handlePickImage}
             activeOpacity={0.85}
-            disabled={uploading}
           >
             {displayUri ? (
               <>
                 <Image
-                  key={displayUri}
                   source={{ uri: displayUri }}
                   style={s.productImage}
-                  contentFit="cover"
-                  cachePolicy="none"
+                  resizeMode="cover"
                 />
                 {uploading && (
                   <View style={s.uploadOverlay}>
                     <ActivityIndicator color="#fff" />
                   </View>
                 )}
-                {/* Botón quitar */}
                 {!uploading && (
-                  <TouchableOpacity style={s.removeBtn} onPress={handleRemoveImage}>
+                  <View style={s.editBadge}>
+                    <Ionicons name="camera" size={13} color="#fff" />
+                  </View>
+                )}
+                {!uploading && (
+                  <TouchableOpacity
+                    style={s.removeBtn}
+                    onPress={() => { setImageUrl(null); setLocalUri(null) }}
+                  >
                     <Ionicons name="close" size={14} color="#fff" />
                   </TouchableOpacity>
                 )}
-                {/* Botón cambiar */}
-                <View style={s.editBadge}>
-                  <Ionicons name="camera" size={13} color="#fff" />
-                </View>
               </>
             ) : (
               <View style={s.imagePlaceholder}>
@@ -266,8 +253,11 @@ export default function ProductFormScreen() {
             <Text style={s.noCatText}>Crea categorías desde Inventario → 🏷️</Text>
           </View>
         ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+          >
             {categories.map(cat => (
               <TouchableOpacity
                 key={cat.id}
@@ -310,13 +300,13 @@ export default function ProductFormScreen() {
           </View>
         </View>
 
-        {/* Umbral de stock bajo */}
+        {/* ── Stock mínimo ─────────────────────────────────── */}
         <View style={s.minStockWrap}>
           <View style={{ flex: 1 }}>
             <Text style={s.label}>Alerta de stock mínimo</Text>
-            <Text style={s.labelHint}>Notificar cuando el stock baje de este número</Text>
+            <Text style={s.labelHint}>Notificar cuando baje de este número</Text>
           </View>
-          <View style={s.minStockInput}>
+          <View style={s.minStockCtrl}>
             <TouchableOpacity
               onPress={() => setMinStock(v => String(Math.max(0, parseInt(v || '0') - 1)))}
               style={s.minStockBtn}
@@ -335,9 +325,9 @@ export default function ProductFormScreen() {
 
         {/* ── Guardar ──────────────────────────────────────── */}
         <TouchableOpacity
-          style={[s.saveBtn, (loading || uploading) && { opacity: 0.6 }]}
+          style={[s.saveBtn, loading && { opacity: 0.6 }]}
           onPress={handleSave}
-          disabled={loading || uploading}
+          disabled={loading}
           activeOpacity={0.85}
         >
           {loading
@@ -369,13 +359,12 @@ const s = StyleSheet.create({
   imageSection: { alignItems: 'center', marginBottom: 8 },
   imageWrap: {
     width: IMAGE_SIZE, height: IMAGE_SIZE,
-    borderRadius: radius.xl,
-    overflow: 'hidden', position: 'relative',
-    ...shadow.card,
+    borderRadius: radius.xl, overflow: 'hidden',
+    position: 'relative',
   },
   productImage: { width: IMAGE_SIZE, height: IMAGE_SIZE },
   uploadOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute', top: 0, bottom: 0, left: 0, right: 0,
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center', justifyContent: 'center',
   },
@@ -403,6 +392,7 @@ const s = StyleSheet.create({
 
   // Form
   label: { fontSize: 12, fontWeight: '500', color: colors.inkMuted, marginTop: 16, marginBottom: 6 },
+  labelHint: { fontSize: 11, color: colors.inkMuted, marginTop: 2 },
   input: {
     borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
     paddingHorizontal: 16, paddingVertical: 14,
@@ -420,20 +410,23 @@ const s = StyleSheet.create({
   catChipText: { fontSize: 13, fontWeight: '500', color: colors.inkMid },
   catChipTextActive: { color: '#fff' },
 
+  noCatBox: {
+    padding: 16, borderRadius: radius.md,
+    backgroundColor: `${colors.accent}10`,
+    borderWidth: 1, borderColor: `${colors.accent}30`,
+  },
+  noCatText: { color: colors.accent, fontSize: 13, textAlign: 'center' },
+
   minStockWrap: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radius.md, padding: 14,
-    borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface, borderRadius: radius.md,
+    padding: 14, borderWidth: 1, borderColor: colors.border,
     marginTop: 16, gap: 12,
   },
-  labelHint: { fontSize: 11, color: colors.inkMuted, marginTop: 2 },
-  minStockInput: {
+  minStockCtrl: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    borderWidth: 1, borderColor: colors.border,
-    overflow: 'hidden',
+    backgroundColor: colors.background, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.border, overflow: 'hidden',
   },
   minStockBtn: {
     width: 38, height: 44,
@@ -443,12 +436,6 @@ const s = StyleSheet.create({
     width: 36, textAlign: 'center',
     fontSize: 17, fontWeight: '600', color: colors.ink,
   },
-  noCatBox: {
-    padding: 16, borderRadius: radius.md,
-    backgroundColor: `${colors.accent}10`,
-    borderWidth: 1, borderColor: `${colors.accent}30`,
-  },
-  noCatText: { color: colors.accent, fontSize: 13, textAlign: 'center' },
 
   saveBtn: {
     backgroundColor: colors.primary, borderRadius: radius.md,
