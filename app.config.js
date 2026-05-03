@@ -6,7 +6,7 @@ export default {
     version: '1.0.0',
     icon: './assets/icon.png',
     splash: {
-      image: './assets/splash.png',
+      image:           './assets/splash.png',
       imageContentFit: 'contain',
       backgroundColor: '#1A1A2E',
     },
@@ -16,14 +16,14 @@ export default {
     newArchEnabled: true,
     ios: {
       supportsTablet: false,
-      bundleIdentifier: 'mx.jacarandalab.gelatoflow',
+      bundleIdentifier: 'com.jacarandalab.gelatoflow',
       infoPlist: {
         NSPhotoLibraryUsageDescription: 'Gelato Flow necesita acceso a tu galería para actualizar tu foto de perfil.',
         NSCameraUsageDescription: 'Gelato Flow necesita acceso a tu cámara para tomar una foto de perfil.',
       },
     },
     android: {
-      package: 'mx.jacarandalab.gelatoflow',
+      package: 'com.jacarandalab.gelatoflow',
       edgeToEdgeEnabled: true,
       permissions: [
         'android.permission.READ_MEDIA_IMAGES',
