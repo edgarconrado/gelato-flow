@@ -50,6 +50,7 @@ export interface Profile {
   full_name: string | null
   role: UserRole
   store_id: string
+  avatar_url: string | null
   store?: Store
 }
 

@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 1. Cargar perfil sin join para evitar problemas de RLS en stores
         const { data: profileData, error: profileError } = await supabase
             .from('profiles')
-            .select('id, email, full_name, role, store_id')
+            .select('id, email, full_name, role, store_id, avatar_url')
             .eq('id', userId)
             .maybeSingle()
 

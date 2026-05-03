@@ -1,7 +1,7 @@
 // app/(tabs)/profile.tsx — Perfil · versión ligera sin operaciones pesadas en mount
 import { useState, useEffect } from 'react'
 import {
-  View, Text, Image, StyleSheet, TouchableOpacity,
+  View, Text, Image, TextInput, StyleSheet, TouchableOpacity,
   Alert, ActivityIndicator, ScrollView, Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -23,12 +23,20 @@ export default function ProfileScreen() {
 
   // Diferir render pesado para evitar ANR en Android
   const [ready, setReady] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [localAvatarUri, setLocalAvatarUri] = useState<string | null>(null)
+  const [editingStore, setEditingStore] = useState(false)
+  const [storeName, setStoreName] = useState('')
+  const [storeAddress, setStoreAddress] = useState('')
+  const [storePhone, setStorePhone] = useState('')
+  const [savingStore, setSavingStore] = useState(false)
 
   useEffect(() => {
     // Dar tiempo al hilo principal para terminar la transición del tab
-    const t = setTimeout(() => setReady(true), 50)
+    const t = setTimeout(() => {
+      setReady(true)
+      setStoreName(profile?.store?.name ?? '')
+      setStoreAddress(profile?.store?.address ?? '')
+      setStorePhone(profile?.store?.phone ?? '')
+    }, 50)
     return () => clearTimeout(t)
   }, [])
 
@@ -45,63 +53,28 @@ export default function ProfileScreen() {
   const roleInfo = ROLE_LABELS[profile.role] ?? { label: profile.role ?? '—', icon: '👤' }
   const initials = (profile.full_name ?? profile.email ?? 'U')
     .split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
-  const avatarUrl = (profile as any).avatar_url as string | null | undefined
-  const displayUri = localAvatarUri ?? (avatarUrl && avatarUrl.length > 0 ? avatarUrl : null)
+  const displayUri = profile.avatar_url && profile.avatar_url.length > 0 ? profile.avatar_url : null
 
   const handlePickAvatar = async () => {
-    try {
-      // Import dinámico para evitar crash si el módulo nativo no está disponible
-      const ImagePicker = await import('expo-image-picker')
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-      if (status !== 'granted') {
-        Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.')
-        return
-      }
+    Alert.alert('Próximamente', 'La función de foto de perfil estará disponible en la siguiente actualización.')
+  }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'images',
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
+  const handleSaveStore = async () => {
+    if (!storeName.trim()) { Alert.alert('El nombre es requerido'); return }
+    setSavingStore(true)
+    const { error } = await supabase
+      .from('stores')
+      .update({
+        name: storeName.trim(),
+        address: storeAddress.trim() || null,
+        phone: storePhone.trim() || null,
       })
-
-      if (result.canceled || !result.assets[0]) return
-
-      const asset = result.assets[0]
-      setLocalAvatarUri(asset.uri)
-      setUploading(true)
-
-      const response = await fetch(asset.uri)
-      const arrayBuffer = await response.arrayBuffer()
-      const ext = asset.mimeType === 'image/png' ? 'png' : 'jpg'
-      const filePath = `${profile.id}/avatar.${ext}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, arrayBuffer, {
-          contentType: asset.mimeType ?? 'image/jpeg',
-          upsert: true,
-        })
-
-      if (uploadError) throw uploadError
-
-      const { data: urlData } = supabase.storage
-        .from('avatars').getPublicUrl(filePath)
-      const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`
-
-      await supabase.from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', profile.id)
-
-      setLocalAvatarUri(publicUrl)
-      await refreshProfile()
-
-    } catch (err: any) {
-      Alert.alert('Error', err?.message ?? 'No se pudo subir la foto.')
-      setLocalAvatarUri(null)
-    } finally {
-      setUploading(false)
-    }
+      .eq('id', profile!.store_id)
+    setSavingStore(false)
+    if (error) { Alert.alert('Error', error.message); return }
+    await refreshProfile()
+    setEditingStore(false)
+    Alert.alert('✓ Tienda actualizada')
   }
 
   const handleSignOut = () => {
@@ -133,15 +106,9 @@ export default function ProfileScreen() {
                 <Text style={s.avatarInitials}>{initials}</Text>
               </View>
             )}
-            {uploading && (
-              <View style={s.avatarOverlay}>
-                <ActivityIndicator color="#fff" size="small" />
-              </View>
-            )}
             <TouchableOpacity
               style={s.cameraBtn}
               onPress={handlePickAvatar}
-              disabled={uploading}
               activeOpacity={0.85}
             >
               <Ionicons name="camera" size={14} color={colors.ink} />
@@ -159,18 +126,75 @@ export default function ProfileScreen() {
 
         {/* ── Tienda ───────────────────────────────────────── */}
         <View style={s.section}>
-          <Text style={s.sectionLabel}>MI TIENDA</Text>
-          <View style={s.card}>
-            <View style={s.storeRow}>
-              <View style={s.storeIcon}>
-                <Ionicons name="storefront" size={18} color={colors.primary} />
-              </View>
-              <Text style={s.storeName}>{profile.store?.name ?? '—'}</Text>
-            </View>
-            <Row icon="location-outline" label="Dirección" value={profile.store?.address ?? 'Sin registrar'} />
-            <Row icon="call-outline" label="Teléfono" value={profile.store?.phone ?? 'Sin registrar'} />
-            <Row icon="id-card-outline" label="ID" value={(profile.store_id ?? '').slice(0, 8).toUpperCase()} mono />
+          <View style={s.sectionRow}>
+            <Text style={s.sectionLabel}>MI TIENDA</Text>
+            {profile.role === 'owner' && (
+              <TouchableOpacity onPress={() => setEditingStore(!editingStore)}>
+                <Text style={s.editLink}>{editingStore ? 'Cancelar' : 'Editar'}</Text>
+              </TouchableOpacity>
+            )}
           </View>
+
+          {editingStore ? (
+            <View style={s.card}>
+              <View style={s.editField}>
+                <Text style={s.editLabel}>Nombre de la tienda *</Text>
+                <TextInput
+                  style={s.editInput}
+                  value={storeName}
+                  onChangeText={setStoreName}
+                  placeholder="Ej: Paletería La Güera"
+                  placeholderTextColor={colors.inkMuted}
+                />
+              </View>
+              <View style={[s.editField, { borderTopWidth: 0.5, borderTopColor: colors.border }]}>
+                <Text style={s.editLabel}>Dirección</Text>
+                <TextInput
+                  style={s.editInput}
+                  value={storeAddress}
+                  onChangeText={setStoreAddress}
+                  placeholder="Calle, Colonia, Ciudad"
+                  placeholderTextColor={colors.inkMuted}
+                />
+              </View>
+              <View style={[s.editField, { borderTopWidth: 0.5, borderTopColor: colors.border }]}>
+                <Text style={s.editLabel}>Teléfono</Text>
+                <TextInput
+                  style={s.editInput}
+                  value={storePhone}
+                  onChangeText={setStorePhone}
+                  placeholder="33 1234 5678"
+                  placeholderTextColor={colors.inkMuted}
+                  keyboardType="phone-pad"
+                />
+              </View>
+              <TouchableOpacity
+                style={[s.saveStoreBtn, savingStore && { opacity: 0.6 }]}
+                onPress={handleSaveStore}
+                disabled={savingStore}
+                activeOpacity={0.85}
+              >
+                {savingStore
+                  ? <ActivityIndicator color={colors.ink} size="small" />
+                  : <Text style={s.saveStoreBtnText}>Guardar cambios</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={s.card}>
+              <View style={s.storeRow}>
+                <View style={s.storeIcon}>
+                  <Ionicons name="storefront" size={18} color={colors.primary} />
+                </View>
+                <Text style={s.storeName}>
+                  {profile.store?.name?.trim() || 'Sin nombre — toca Editar'}
+                </Text>
+              </View>
+              <Row icon="location-outline" label="Dirección" value={profile.store?.address ?? 'No registrada'} />
+              <Row icon="call-outline" label="Teléfono" value={profile.store?.phone ?? 'No registrado'} />
+              <Row icon="id-card-outline" label="ID" value={(profile.store_id ?? '').slice(0, 8).toUpperCase()} mono />
+            </View>
+          )}
         </View>
 
         {/* ── Cuenta ───────────────────────────────────────── */}
@@ -372,6 +396,21 @@ const s = StyleSheet.create({
   menuTitle: { fontSize: 14, fontWeight: '500', color: colors.ink },
   menuSub: { fontSize: 11, color: colors.inkMuted, marginTop: 1 },
 
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  editLink: { fontSize: 13, color: colors.primary, fontWeight: '600' },
+  editField: { paddingHorizontal: 14, paddingVertical: 10 },
+  editLabel: { fontSize: 10, color: colors.inkMuted, marginBottom: 4, fontWeight: '500' },
+  editInput: {
+    fontSize: 14, color: colors.ink,
+    paddingVertical: 8, paddingHorizontal: 0,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  saveStoreBtn: {
+    margin: 14, backgroundColor: colors.primary,
+    borderRadius: radius.md, paddingVertical: 13,
+    alignItems: 'center',
+  },
+  saveStoreBtnText: { color: colors.ink, fontWeight: '700', fontSize: 14 },
   signOutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     padding: 14, borderRadius: radius.lg,
