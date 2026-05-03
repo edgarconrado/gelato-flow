@@ -1,4 +1,4 @@
-// app/(tabs)/_layout.tsx
+// app/(tabs)/_layout.tsx — Ink & Mint tab bar
 import { Tabs } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { colors } from '../../constants/theme'
@@ -6,28 +6,38 @@ import { colors } from '../../constants/theme'
 export default function TabsLayout() {
   return (
     <Tabs
+      sceneContainerStyle={{ paddingBottom: 62 }}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.muted,
+        tabBarInactiveTintColor: colors.inkMuted,
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          height: 60,
-          paddingBottom: 8,
+          backgroundColor: colors.ink,
+          borderTopColor: 'rgba(255,255,255,0.06)',
+          borderTopWidth: 0.5,
+          height: 62,
+          paddingBottom: 10,
+          paddingTop: 8,
+          // Forzar visibilidad en Android con edgeToEdgeEnabled
+          elevation: 8,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
+          fontSize: 10,
+          fontWeight: '500',
+          letterSpacing: 0.02,
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Punto de Venta',
+          title: 'Venta',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cart" size={size} color={color} />
+            <Ionicons name="bag-outline" size={size} color={color} />
           ),
         }}
       />
@@ -36,7 +46,7 @@ export default function TabsLayout() {
         options={{
           title: 'Inventario',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cube" size={size} color={color} />
+            <Ionicons name="cube-outline" size={size} color={color} />
           ),
         }}
       />
@@ -45,7 +55,7 @@ export default function TabsLayout() {
         options={{
           title: 'Reportes',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart" size={size} color={color} />
+            <Ionicons name="bar-chart-outline" size={size} color={color} />
           ),
         }}
       />
@@ -54,7 +64,7 @@ export default function TabsLayout() {
         options={{
           title: 'Perfil',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+            <Ionicons name="person-outline" size={size} color={color} />
           ),
         }}
       />

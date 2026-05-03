@@ -1,115 +1,223 @@
-// app/(tabs)/index.tsx — POS con categorías optimizadas para iPad
-import { useState } from 'react'
-import {
-  View, Text, FlatList, TouchableOpacity,
-  StyleSheet,
-} from 'react-native'
+// app/(tabs)/index.tsx — POS · Ink & Mint redesign v2
+import { useState, useEffect, useRef } from 'react'
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput } from 'react-native'
+import Animated, {
+  useSharedValue, useAnimatedStyle, withSpring, withSequence,
+  withTiming, Easing,
+} from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import { Image } from 'expo-image'
 import { Ionicons } from '@expo/vector-icons'
-import { useCategories, useProducts } from '../../hooks/useData'
+import * as Haptics from 'expo-haptics'
+import { useCategories, useProducts, useAllProducts } from '../../hooks/useData'
 import { useCartStore } from '../../store'
 import { useAuth } from '../../context/AuthContext'
 import { Product, Category } from '../../lib/supabase'
-import { colors } from '../../constants/theme'
+import { colors, radius, shadow } from '../../constants/theme'
 
-// Categoría virtual "Todos" para el primer chip
-const ALL_CAT = { id: '__all__', name: 'Todos', emoji: '★', sort_order: 0, store_id: '' }
+const ALL_CAT = { id: '__all__', name: 'Todos', emoji: '✦', sort_order: 0, store_id: '' }
 
 export default function POSScreen() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [searchActive, setSearchActive] = useState(false)
+  const searchRef = useRef<any>(null)
+
   const { categories, loading: loadingCats } = useCategories()
   const { products, loading: loadingProducts } = useProducts(selectedCategoryId)
+  const { products: allProducts } = useAllProducts()
   const { items, addItem, total } = useCartStore()
   const { profile } = useAuth()
   const router = useRouter()
 
   const itemCount = items.reduce((s, i) => s + i.quantity, 0)
+
+  // ── Animaciones ──────────────────────────────────────────────
+  const cartScale = useSharedValue(1)
+  const cartBounce = useAnimatedStyle(() => ({ transform: [{ scale: cartScale.value }] }))
+  const totalScale = useSharedValue(1)
+  const totalBounce = useAnimatedStyle(() => ({ transform: [{ scale: totalScale.value }] }))
+  const prevCount = useRef(0)
+
+  // Barra de búsqueda animada
+  const searchBarHeight = useSharedValue(0)
+  const searchBarStyle = useAnimatedStyle(() => ({
+    height: searchBarHeight.value,
+    opacity: withTiming(searchBarHeight.value > 0 ? 1 : 0, { duration: 150 }),
+    overflow: 'hidden',
+  }))
+
+  useEffect(() => {
+    if (itemCount > prevCount.current) {
+      cartScale.value = withSequence(
+        withSpring(1.28, { damping: 4, stiffness: 300 }),
+        withSpring(1, { damping: 6, stiffness: 200 })
+      )
+      totalScale.value = withSequence(
+        withTiming(1.06, { duration: 100, easing: Easing.out(Easing.quad) }),
+        withSpring(1, { damping: 8, stiffness: 180 })
+      )
+    }
+    prevCount.current = itemCount
+  }, [itemCount])
+
+  const handleSearchToggle = () => {
+    if (searchActive) {
+      setSearch('')
+      searchBarHeight.value = withTiming(0, { duration: 220, easing: Easing.out(Easing.quad) })
+      setSearchActive(false)
+    } else {
+      setSearchActive(true)
+      searchBarHeight.value = withSpring(72, { damping: 14, stiffness: 180 })
+      setTimeout(() => searchRef.current?.focus(), 250)
+    }
+  }
+
   const allCats = [ALL_CAT, ...categories] as (typeof ALL_CAT | Category)[]
 
+  const filteredProducts = search.trim()
+    ? allProducts.filter(p =>
+      p.name.toLowerCase().includes(search.toLowerCase().trim()) && p.active !== false
+    )
+    : products
+
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={s.safe} edges={['top']}>
 
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.storeName}>{profile?.store?.name ?? 'Mi Tienda'}</Text>
-          <Text style={styles.headerSub}>Punto de Venta</Text>
+      {/* ── Header ─────────────────────────────────────────── */}
+      <View style={s.header}>
+        <View style={s.headerLeft}>
+          <Text style={s.storeName}>{profile?.store?.name ?? 'Gelato Flow'}</Text>
+          <Text style={s.storeSub}>Punto de venta</Text>
         </View>
-        <TouchableOpacity style={styles.cartBtn} onPress={() => router.push('/pos/checkout')}>
-          <Ionicons name="cart" size={24} color="#fff" />
-          {itemCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{itemCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={s.headerRight}>
+          {/* Botón búsqueda */}
+          <TouchableOpacity
+            style={[s.headerBtn, searchActive && s.headerBtnActive]}
+            onPress={handleSearchToggle}
+            activeOpacity={0.75}
+          >
+            <Ionicons
+              name={searchActive ? 'close' : 'search-outline'}
+              size={18}
+              color={searchActive ? colors.accent : 'rgba(255,255,255,0.8)'}
+            />
+          </TouchableOpacity>
+
+          {/* Botón carrito */}
+          <Animated.View style={cartBounce}>
+            <TouchableOpacity
+              style={s.cartBtn}
+              onPress={() => router.push('/pos/checkout')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="bag-outline" size={18} color={colors.ink} />
+              {itemCount > 0 && (
+                <View style={s.cartBadge}>
+                  <Text style={s.cartBadgeText}>{itemCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
       </View>
 
-      {/* ── Barra de categorías ─────────────────────────────────── */}
-      <View style={styles.categoryWrapper}>
-        <FlatList
-          horizontal
-          data={allCats}
-          keyExtractor={c => c.id}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryBar}
-          renderItem={({ item }) => {
-            const isAll = item.id === '__all__'
-            const isActive = isAll
-              ? selectedCategoryId === null
-              : selectedCategoryId === item.id
-
-            return (
-              <TouchableOpacity
-                style={[styles.catChip, isActive && styles.catChipActive]}
-                onPress={() => setSelectedCategoryId(isAll ? null : item.id)}
-                activeOpacity={0.7}
-              >
-                {/* Texto del emoji — más grande y sin renderizado de imagen */}
-                <Text style={[styles.catEmoji, isActive && styles.catEmojiActive]}>
-                  {item.emoji}
-                </Text>
-                <Text style={[styles.catLabel, isActive && styles.catLabelActive]}>
-                  {item.name}
-                </Text>
-              </TouchableOpacity>
-            )
-          }}
+      {/* ── Barra de búsqueda animada ───────────────────────── */}
+      <Animated.View style={[s.searchBarWrap, searchBarStyle]}>
+        <Ionicons name="search-outline" size={17} color={colors.primary} />
+        <TextInput
+          ref={searchRef}
+          style={s.searchInput}
+          placeholder="Buscar producto…"
+          placeholderTextColor={colors.inkMuted}
+          value={search}
+          onChangeText={setSearch}
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="search"
         />
-      </View>
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="close-circle" size={18} color={colors.inkMuted} />
+          </TouchableOpacity>
+        )}
+      </Animated.View>
 
-      {/* ── Grid de productos ───────────────────────────────────── */}
-      {loadingProducts || loadingCats ? (
-        <View style={styles.center}>
-          <Text style={styles.loadingText}>Cargando productos...</Text>
+      {/* ── Categorías ──────────────────────────────────────── */}
+      {!loadingCats && !searchActive && (
+        <View style={s.catWrap}>
+          <FlatList
+            horizontal
+            data={allCats}
+            keyExtractor={c => c.id}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.catList}
+            renderItem={({ item }) => {
+              const isAll = item.id === '__all__'
+              const isActive = isAll ? selectedCategoryId === null : selectedCategoryId === item.id
+              return (
+                <TouchableOpacity
+                  style={[s.catChip, isActive && s.catChipActive]}
+                  onPress={() => setSelectedCategoryId(isAll ? null : item.id)}
+                  activeOpacity={0.75}
+                >
+                  {!isAll && <Text style={s.catEmoji}>{item.emoji}</Text>}
+                  <Text style={[s.catLabel, isActive && s.catLabelActive]}>
+                    {item.name}
+                  </Text>
+                </TouchableOpacity>
+              )
+            }}
+          />
+        </View>
+      )}
+
+      {/* ── Grid de productos ───────────────────────────────── */}
+      {loadingProducts && !loadingCats ? (
+        <View style={s.center}>
+          <Text style={s.emptyText}>Cargando…</Text>
         </View>
       ) : (
         <FlatList
-          data={products}
+          data={filteredProducts}
           numColumns={2}
           keyExtractor={p => p.id}
-          contentContainerStyle={styles.grid}
+          contentContainerStyle={s.grid}
           columnWrapperStyle={{ gap: 12 }}
           renderItem={({ item }) => (
             <ProductCard product={item} onPress={() => addItem(item)} />
           )}
           ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.emptyText}>Sin productos en esta categoría</Text>
+            <View style={s.center}>
+              <Text style={{ fontSize: 40, marginBottom: 10 }}>
+                {search ? '🔍' : '📦'}
+              </Text>
+              <Text style={s.emptyText}>
+                {search ? `Sin resultados para "${search}"` : 'Sin productos aquí'}
+              </Text>
             </View>
           }
         />
       )}
 
-      {/* ── Barra de total ──────────────────────────────────────── */}
+      {/* ── Barra de total ──────────────────────────────────── */}
       {itemCount > 0 && (
-        <TouchableOpacity style={styles.totalBar} onPress={() => router.push('/pos/checkout')}>
-          <Text style={styles.totalBarLabel}>
-            {itemCount} producto{itemCount !== 1 ? 's' : ''}
-          </Text>
-          <Text style={styles.totalBarAmount}>Total: ${total().toFixed(2)}</Text>
-          <Ionicons name="arrow-forward" size={20} color="#fff" />
+        <TouchableOpacity
+          style={s.totalBar}
+          onPress={() => router.push('/pos/checkout')}
+          activeOpacity={0.9}
+        >
+          <View>
+            <Text style={s.totalBarSub}>{itemCount} producto{itemCount !== 1 ? 's' : ''}</Text>
+            <Animated.Text style={[s.totalBarAmount, totalBounce]}>
+              ${total().toFixed(2)}
+            </Animated.Text>
+          </View>
+          <View style={s.payBtn}>
+            <Text style={s.payBtnText}>Cobrar</Text>
+            <Ionicons name="arrow-forward" size={15} color={colors.ink} />
+          </View>
         </TouchableOpacity>
       )}
 
@@ -117,153 +225,215 @@ export default function POSScreen() {
   )
 }
 
-// ─── Tarjeta de producto ──────────────────────────────────────
+// ─── ProductCard ──────────────────────────────────────────────
 
 function ProductCard({ product, onPress }: { product: Product; onPress: () => void }) {
-  const inCart = useCartStore(s => s.items.find(i => i.product.id === product.id))
+  const inCart = useCartStore(st => st.items.find(i => i.product.id === product.id))
+  const emoji = product.category?.emoji ?? '🍽️'
+  const imgUrl = (product as any).image_url ?? null
+  const pressScale = useSharedValue(1)
+  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: pressScale.value }] }))
+
+  const handlePress = () => {
+    // Light impact al agregar producto — sutil, no intrusivo
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    pressScale.value = withSequence(
+      withTiming(0.93, { duration: 80, easing: Easing.out(Easing.quad) }),
+      withSpring(1, { damping: 5, stiffness: 300 })
+    )
+    onPress()
+  }
 
   return (
-    <TouchableOpacity
-      style={[styles.card, !!inCart && styles.cardActive]}
-      onPress={onPress}
-      activeOpacity={0.75}
-    >
-      <Text style={styles.cardEmoji}>{product.category?.emoji ?? '🍽️'}</Text>
-      <Text style={styles.cardName} numberOfLines={2}>{product.name}</Text>
-      <Text style={styles.cardPrice}>${product.price.toFixed(2)}</Text>
+    <Animated.View style={[s.card, !!inCart && s.cardActive, pressStyle]}>
+      <TouchableOpacity style={{ flex: 1 }} onPress={handlePress} activeOpacity={1}>
 
-      {/* Badge de cantidad en carrito */}
-      {inCart && (
-        <View style={styles.qtyBadge}>
-          <Text style={styles.qtyText}>{inCart.quantity}</Text>
-        </View>
-      )}
+        {/* Badge cantidad */}
+        {inCart && (
+          <View style={s.qtyBadge}>
+            <Text style={s.qtyText}>{inCart.quantity}</Text>
+          </View>
+        )}
 
-      {/* Aviso de stock bajo */}
-      {product.stock <= 5 && product.stock > 0 && (
-        <Text style={styles.lowStock}>Solo {product.stock} disponibles</Text>
-      )}
-    </TouchableOpacity>
+        {/* Imagen o emoji */}
+        {imgUrl ? (
+          <Image
+            source={{ uri: imgUrl }}
+            style={s.cardImage}
+            contentFit="cover"
+            transition={150}
+          />
+        ) : (
+          <View style={s.emojiWrap}>
+            <Text style={s.cardEmoji}>{emoji}</Text>
+          </View>
+        )}
+
+        <Text style={s.cardName} numberOfLines={2}>{product.name}</Text>
+        <Text style={s.cardPrice}>${product.price.toFixed(2)}</Text>
+
+        {product.stock <= 5 && product.stock > 0 && (
+          <View style={s.lowStockBadge}>
+            <Text style={s.lowStockText}>Últimas {product.stock}</Text>
+          </View>
+        )}
+
+      </TouchableOpacity>
+    </Animated.View>
   )
 }
 
-// ─── Estilos ──────────────────────────────────────────────────
+// ─── Estilos ─────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
 
   // Header
   header: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.ink,
     paddingHorizontal: 20,
     paddingVertical: 14,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    ...shadow.header,
   },
-  storeName: { fontSize: 18, fontWeight: '800', color: '#fff' },
-  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
+  headerLeft: {},
+  storeName: { fontSize: 17, fontWeight: '600', color: '#fff', letterSpacing: -0.3 },
+  storeSub: { fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 1 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+
+  headerBtn: {
+    width: 38, height: 38, borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerBtnActive: { backgroundColor: 'rgba(245,107,92,0.15)' },
+
   cartBtn: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    padding: 10, borderRadius: 14,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16, paddingVertical: 9,
+    borderRadius: radius.pill,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    position: 'relative',
   },
-  badge: {
-    position: 'absolute', top: -4, right: -4,
-    backgroundColor: colors.accent,
+  cartBadge: {
+    backgroundColor: colors.ink,
     borderRadius: 10, minWidth: 20, height: 20,
     alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 3,
+    paddingHorizontal: 4,
   },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  cartBadgeText: { color: colors.primary, fontSize: 11, fontWeight: '700' },
 
-  // Categorías — contenedor con fondo y sombra suave
-  categoryWrapper: {
+  // Búsqueda
+  searchBarWrap: {
+    flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+    paddingHorizontal: 16, gap: 10,
   },
-  categoryBar: {
-    paddingHorizontal: 12,
-    gap: 8,
-    alignItems: 'center',
+  searchInput: {
+    flex: 1, fontSize: 16, color: colors.ink,
+    paddingVertical: 0, includeFontPadding: false,
+    height: 72,
   },
+
+  // Categorías
+  catWrap: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 0.5, borderBottomColor: colors.border,
+  },
+  catList: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   catChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: radius.pill,
     backgroundColor: colors.background,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: colors.border,
-    // Tamaño mínimo para que sea fácil de tocar en iPad
-    minHeight: 40,
+    borderWidth: 1, borderColor: colors.border,
   },
-  catChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  // Emoji como texto grande — evita el renderizado pixelado de iOS
-  catEmoji: {
-    fontSize: 18,
-    lineHeight: 22,
-    // En iOS los emojis a veces se recortan si lineHeight < fontSize
-  },
-  catEmojiActive: {
-    // Sin cambio de color — los emojis no cambian con tintColor
-  },
-  catLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-    letterSpacing: 0.1,
-  },
+  catChipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  catEmoji: { fontSize: 14 },
+  catLabel: { fontSize: 13, fontWeight: '500', color: colors.inkMid },
   catLabelActive: { color: '#fff' },
 
-  // Grid de productos
-  grid: { padding: 14, gap: 12 },
+  // Grid
+  grid: { padding: 14, gap: 12, paddingBottom: 160 },
+
   card: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderRadius: radius.lg,
+    padding: 12,
+    borderWidth: 1, borderColor: colors.border,
     position: 'relative',
-    minHeight: 120,
+    minHeight: 140,
+    ...shadow.sm,
   },
-  cardActive: { borderColor: colors.primary },
-  cardEmoji: { fontSize: 36, marginBottom: 8 },
-  cardName: {
-    fontSize: 14, fontWeight: '600',
-    color: colors.text, marginBottom: 6,
-    lineHeight: 18,
+  cardActive: {
+    borderColor: colors.primary,
+    borderWidth: 1.5,
+    backgroundColor: `${colors.primaryLight}`,
   },
-  cardPrice: { fontSize: 20, fontWeight: '800', color: colors.primary },
+
+  // Badge cantidad
   qtyBadge: {
-    position: 'absolute', top: 10, right: 10,
+    position: 'absolute', top: -6, right: -6, zIndex: 2,
     backgroundColor: colors.primary,
-    borderRadius: 13, width: 26, height: 26,
+    width: 24, height: 24, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: colors.surface,
   },
-  qtyText: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  lowStock: { fontSize: 11, color: colors.accent, marginTop: 4, fontWeight: '600' },
+  qtyText: { color: colors.ink, fontWeight: '800', fontSize: 11 },
 
-  // Barra total
+  // Imagen / emoji
+  cardImage: {
+    width: '100%', height: 80,
+    borderRadius: radius.sm, marginBottom: 8,
+    backgroundColor: colors.background,
+  },
+  emojiWrap: {
+    width: '100%', height: 64,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.background,
+    borderRadius: radius.sm, marginBottom: 8,
+  },
+  cardEmoji: { fontSize: 36 },
+
+  cardName: {
+    fontSize: 12, fontWeight: '500',
+    color: colors.inkMid, marginBottom: 4, lineHeight: 16,
+  },
+  cardPrice: {
+    fontSize: 17, fontWeight: '700',
+    color: colors.ink, letterSpacing: -0.3,
+  },
+
+  lowStockBadge: {
+    backgroundColor: `${colors.accent}15`,
+    borderRadius: radius.pill, alignSelf: 'flex-start',
+    paddingHorizontal: 6, paddingVertical: 2, marginTop: 4,
+  },
+  lowStockText: { fontSize: 10, color: colors.accent, fontWeight: '600' },
+
+  // Total bar
   totalBar: {
-    backgroundColor: colors.primary,
-    margin: 14, borderRadius: 16,
-    paddingVertical: 16, paddingHorizontal: 20,
+    backgroundColor: colors.ink,
+    marginHorizontal: 14, marginBottom: 76,
+    borderRadius: radius.xl,
+    paddingVertical: 14, paddingHorizontal: 20,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    shadowColor: colors.primary, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
+    ...shadow.header,
   },
-  totalBarLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '600' },
-  totalBarAmount: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  totalBarSub: { color: 'rgba(255,255,255,0.4)', fontSize: 11, marginBottom: 2 },
+  totalBarAmount: { color: '#fff', fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
+  payBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20, paddingVertical: 12,
+    borderRadius: radius.lg,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+  },
+  payBtnText: { color: colors.ink, fontSize: 14, fontWeight: '700' },
 
-  // Estados vacíos
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  loadingText: { color: colors.muted, fontSize: 15 },
-  emptyText: { color: colors.muted, fontSize: 15 },
+  emptyText: { color: colors.inkMuted, fontSize: 14 },
 })

@@ -1,76 +1,62 @@
-// app/auth/login.tsx  —  Pantalla de Login
-// Usa signInWithEmail del AuthContext. El guard en _layout.tsx
-// se encarga de navegar tras el login exitoso.
+// app/auth/login.tsx — Ink & Mint design
 import { useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, KeyboardAvoidingView,
   Platform, Alert, ScrollView,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { useAuth } from '../../context/AuthContext'
-import { colors } from '../../constants/theme'
+import { colors, radius, shadow } from '../../constants/theme'
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPass, setShowPass] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
+  const router = useRouter()
   const { signIn } = useAuth()
 
   const handleLogin = async () => {
-    if (!email.trim()) {
-      Alert.alert('Campo requerido', 'Ingresa tu correo electrónico.')
+    if (!email.trim() || !password) {
+      Alert.alert('Campos requeridos', 'Ingresa tu correo y contraseña.')
       return
     }
-    if (!password) {
-      Alert.alert('Campo requerido', 'Ingresa tu contraseña.')
-      return
-    }
-
     setSubmitting(true)
     const errorMsg = await signIn(email, password)
     setSubmitting(false)
-
     if (errorMsg) {
-      // Traduce los errores más comunes de Supabase
       const friendly: Record<string, string> = {
         'Invalid login credentials': 'Correo o contraseña incorrectos.',
         'Email not confirmed': 'Confirma tu correo antes de continuar.',
         'Too many requests': 'Demasiados intentos. Espera un momento.',
       }
-      Alert.alert('Error al iniciar sesión', friendly[errorMsg] ?? errorMsg)
+      Alert.alert('Error', friendly[errorMsg] ?? errorMsg)
     }
-    // Si no hay error, onAuthStateChange + el guard en _layout.tsx
-    // redirigen automáticamente a /(tabs)
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* ── Branding ── */}
-        <View style={styles.logoArea}>
-          <Text style={styles.emoji}>🍦</Text>
-          <Text style={styles.brand}>Paleterías</Text>
-          <Text style={styles.brandSub}>El Paraíso</Text>
+    <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
+
+        {/* Brand mark */}
+        <View style={s.brand}>
+          <View style={s.logoWrap}>
+            <Text style={s.logoEmoji}>🍦</Text>
+          </View>
+          <Text style={s.brandName}>Gelato Flow</Text>
+          <Text style={s.brandTagline}>Sistema de gestión</Text>
         </View>
 
-        {/* ── Card ── */}
-        <View style={styles.card}>
-          <Text style={styles.title}>Iniciar sesión</Text>
-          <Text style={styles.subtitle}>Acceso para personal autorizado</Text>
+        {/* Card */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Iniciar sesión</Text>
 
-          {/* Email */}
-          <Text style={styles.label}>Correo electrónico</Text>
+          <Text style={s.label}>Correo electrónico</Text>
           <TextInput
-            style={styles.input}
-            placeholder="cajero@paleteria.com"
-            placeholderTextColor={colors.muted}
+            style={s.input}
+            placeholder="cajero@gelatoflow.mx"
+            placeholderTextColor={colors.inkMuted}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -79,104 +65,94 @@ export default function LoginScreen() {
             onChangeText={setEmail}
           />
 
-          {/* Password */}
-          <Text style={styles.label}>Contraseña</Text>
-          <View style={styles.passwordRow}>
+          <Text style={s.label}>Contraseña</Text>
+          <View style={s.inputWrap}>
             <TextInput
-              style={[styles.input, styles.passwordInput]}
+              style={[s.input, { paddingRight: 48 }]}
               placeholder="••••••••"
-              placeholderTextColor={colors.muted}
-              secureTextEntry={!showPassword}
+              placeholderTextColor={colors.inkMuted}
+              secureTextEntry={!showPass}
               returnKeyType="done"
               onSubmitEditing={handleLogin}
               value={password}
               onChangeText={setPassword}
             />
-            <TouchableOpacity
-              style={styles.eyeBtn}
-              onPress={() => setShowPassword(p => !p)}
-            >
-              <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+            <TouchableOpacity style={s.eyeBtn} onPress={() => setShowPass(p => !p)}>
+              <Text style={s.eyeIcon}>{showPass ? '🙈' : '👁️'}</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Submit */}
           <TouchableOpacity
-            style={[styles.btn, submitting && styles.btnDisabled]}
+            style={[s.submitBtn, submitting && s.submitBtnDisabled]}
             onPress={handleLogin}
             disabled={submitting}
             activeOpacity={0.85}
           >
             {submitting
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={styles.btnText}>Entrar</Text>
+              ? <ActivityIndicator color={colors.ink} />
+              : <Text style={s.submitBtnText}>Entrar</Text>
             }
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>
-          ¿Problemas para acceder? Contacta a tu administrador.
-        </Text>
+        <TouchableOpacity
+          style={{ marginBottom: 16, alignItems: 'center' }}
+          onPress={() => router.push('/welcome')}
+        >
+          <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13 }}>
+            Tengo un enlace de invitacion
+          </Text>
+        </TouchableOpacity>
+        <Text style={s.footer}>Solo para personal autorizado</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   )
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.background },
-  container: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+const s = StyleSheet.create({
+  flex: { flex: 1, backgroundColor: colors.ink },
+  container: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+
+  brand: { alignItems: 'center', marginBottom: 36 },
+  logoWrap: {
+    width: 72, height: 72, borderRadius: 20,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
   },
-  logoArea: { alignItems: 'center', marginBottom: 32 },
-  emoji: { fontSize: 64 },
-  brand: {
-    fontSize: 30, fontWeight: '800',
-    color: colors.primary, letterSpacing: -0.5,
-  },
-  brandSub: { fontSize: 16, color: colors.muted, marginTop: 2 },
+  logoEmoji: { fontSize: 36 },
+  brandName: { fontSize: 26, fontWeight: '600', color: '#fff', letterSpacing: -0.5 },
+  brandTagline: { fontSize: 13, color: 'rgba(255,255,255,0.4)', marginTop: 4 },
 
   card: {
     width: '100%', maxWidth: 400,
     backgroundColor: colors.surface,
-    borderRadius: 24, padding: 28,
-    shadowColor: '#000', shadowOpacity: 0.1,
-    shadowRadius: 20, elevation: 6,
+    borderRadius: radius.xl, padding: 28,
+    ...shadow.header,
   },
-  title: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 4 },
-  subtitle: { fontSize: 13, color: colors.muted, marginBottom: 24 },
+  cardTitle: { fontSize: 18, fontWeight: '600', color: colors.ink, marginBottom: 24, letterSpacing: -0.3 },
 
-  label: {
-    fontSize: 13, fontWeight: '600',
-    color: colors.muted, marginBottom: 6, marginTop: 12,
-  },
+  label: { fontSize: 12, fontWeight: '500', color: colors.inkMuted, marginBottom: 6, marginTop: 16, letterSpacing: 0.02 },
   input: {
-    borderWidth: 1.5, borderColor: colors.border, borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 13,
-    fontSize: 16, color: colors.text,
+    borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 16, paddingVertical: 14,
+    fontSize: 15, color: colors.ink,
     backgroundColor: colors.background,
   },
-  passwordRow: { position: 'relative' },
-  passwordInput: { paddingRight: 50 },
+  inputWrap: { position: 'relative' },
   eyeBtn: {
-    position: 'absolute', right: 12, top: 0, bottom: 0,
-    justifyContent: 'center', padding: 4,
+    position: 'absolute', right: 12,
+    top: 0, bottom: 0, justifyContent: 'center',
   },
-  eyeIcon: { fontSize: 18 },
+  eyeIcon: { fontSize: 16 },
 
-  btn: {
-    backgroundColor: colors.primary, borderRadius: 14,
-    paddingVertical: 16, alignItems: 'center', marginTop: 24,
-    shadowColor: colors.primary, shadowOpacity: 0.35,
-    shadowRadius: 8, elevation: 4,
+  submitBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md, paddingVertical: 16,
+    alignItems: 'center', marginTop: 28,
   },
-  btnDisabled: { opacity: 0.6 },
-  btnText: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 0.3 },
+  submitBtnDisabled: { opacity: 0.6 },
+  submitBtnText: { color: colors.ink, fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
 
-  footer: {
-    marginTop: 24, textAlign: 'center',
-    color: colors.muted, fontSize: 13, lineHeight: 18,
-  },
+  footer: { marginTop: 24, color: 'rgba(255,255,255,0.25)', fontSize: 12 },
 })

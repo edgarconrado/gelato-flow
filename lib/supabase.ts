@@ -2,14 +2,23 @@
 import 'react-native-url-polyfill/auto'
 import { createClient } from '@supabase/supabase-js'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import Constants from 'expo-constants'
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+// Las variables EXPO_PUBLIC_* se leen de dos fuentes:
+// 1. process.env — funciona en desarrollo con .env local
+// 2. Constants.expoConfig?.extra — funciona en builds de EAS
+const supabaseUrl =
+  process.env.EXPO_PUBLIC_SUPABASE_URL ??
+  (Constants.expoConfig?.extra as any)?.supabaseUrl ?? ''
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    '[Supabase] Faltan variables de entorno.\n' +
-    'EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY requeridas.'
+const supabaseAnonKey =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
+  (Constants.expoConfig?.extra as any)?.supabaseAnonKey ?? ''
+
+if (__DEV__ && (!supabaseUrl || !supabaseAnonKey)) {
+  console.warn(
+    '[Supabase] Variables de entorno no encontradas.\n' +
+    'Crea un archivo .env con EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY'
   )
 }
 
@@ -41,6 +50,7 @@ export interface Profile {
   full_name: string | null
   role: UserRole
   store_id: string
+  avatar_url: string | null
   store?: Store
 }
 
@@ -56,7 +66,7 @@ export interface Product {
   id: string
   store_id: string
   name: string
-  type: string          // legacy — se mantiene por compatibilidad
+  type: string
   category_id: string | null
   category?: Category
   price: number
@@ -91,4 +101,19 @@ export interface SaleItem {
 export interface CartItem {
   product: Product
   quantity: number
+}
+
+export interface StoreInvitation {
+  id: string
+  store_id: string
+  email: string
+  role: 'manager' | 'cashier'
+  invited_by: string
+  accepted: boolean
+  created_at: string
+  expires_at: string
+}
+
+export interface TeamMember extends Profile {
+  // Profile ya tiene id, email, full_name, role, store_id, avatar_url
 }

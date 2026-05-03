@@ -1,11 +1,7 @@
 // context/AuthContext.tsx
 import {
-    createContext,
-    useContext,
-    useEffect,
-    useState,
-    useCallback,
-    ReactNode,
+    createContext, useContext, useEffect,
+    useState, useCallback, ReactNode,
 } from 'react'
 import { Session } from '@supabase/supabase-js'
 import { supabase, Profile } from '../lib/supabase'
@@ -27,49 +23,80 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true)
 
     const fetchProfile = useCallback(async (userId: string) => {
-        // Usamos .limit(1).maybeSingle() en lugar de .single() para evitar el error
-        // "Cannot coerce to a single JSON object" que ocurre cuando hay perfiles
-        // duplicados (el trigger se ejecutó más de una vez).
-        // maybeSingle() devuelve null si no hay resultado, sin lanzar error.
-        const { data, error } = await supabase
+        // 1. Cargar perfil sin join para evitar problemas de RLS en stores
+        const { data: profileData, error: profileError } = await supabase
             .from('profiles')
-            .select(`
-        id,
-        email,
-        full_name,
-        role,
-        store_id,
-        store:stores (
-          id,
-          name,
-          address,
-          phone
-        )
-      `)
+            .select('id, email, full_name, role, store_id, avatar_url')
             .eq('id', userId)
-            .order('created_at', { ascending: true })
-            .limit(1)
             .maybeSingle()
 
-        if (error) {
-            console.error('[AuthContext] Error al cargar perfil:', error.message)
+        if (profileError) {
+            console.error('[AuthContext] Error al cargar perfil:', profileError.message)
             setProfile(null)
-        } else if (!data) {
-            console.warn('[AuthContext] No se encontró perfil para userId:', userId)
-            setProfile(null)
-        } else {
-            setProfile(data as Profile)
+            return
         }
+        if (!profileData) {
+            console.warn('[AuthContext] Sin perfil para userId:', userId)
+            setProfile(null)
+            return
+        }
+
+        // 2. Cargar tienda por separado usando store_id
+        let store = null
+        if (profileData.store_id) {
+            const { data: storeData, error: storeError } = await supabase
+                .from('stores')
+                .select('id, name, address, phone')
+                .eq('id', profileData.store_id)
+                .maybeSingle()
+
+            if (storeError) {
+                console.warn('[AuthContext] Error al cargar store:', storeError.message)
+            } else {
+                store = storeData
+            }
+        }
+
+        console.log('[AuthContext] Profile:', profileData.email, '| Store:', store?.name ?? 'null')
+        setProfile({ ...profileData, store } as Profile)
     }, [])
 
     const refreshProfile = useCallback(async () => {
-        if (session?.user?.id) {
-            await fetchProfile(session.user.id)
-        }
+        if (session?.user?.id) await fetchProfile(session.user.id)
     }, [session, fetchProfile])
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        // Recuperar sesión guardada en AsyncStorage.
+        // Siempre limpiar cualquier sesión de invitación pendiente al arrancar.
+        // Usuarios normales tienen sesión persistida — la recuperamos.
+        // Usuarios invitados (invited=true) son redirigidos al login para
+        // que usen el flujo "Tengo un código de invitación".
+        supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+            if (error) {
+                console.warn('[AuthContext] Token invalido:', error.message)
+                await supabase.auth.signOut()
+                setSession(null)
+                setProfile(null)
+                setLoading(false)
+                return
+            }
+
+            // Solo limpiar si es una sesión de invitación con email sin confirmar
+            // (el usuario nunca completó el flujo de bienvenida).
+            // NO limpiar si email_confirmed_at existe — ya completó el proceso.
+            const isIncompleteInvite =
+                session?.user?.user_metadata?.invited === true &&
+                !session?.user?.email_confirmed_at
+
+            if (session && isIncompleteInvite) {
+                console.log('[AuthContext] Sesion de invitacion incompleta, limpiando...')
+                await supabase.auth.signOut()
+                setSession(null)
+                setProfile(null)
+                setLoading(false)
+                return
+            }
+
             setSession(session)
             if (session?.user) {
                 fetchProfile(session.user.id).finally(() => setLoading(false))
@@ -79,7 +106,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (_event, session) => {
+            async (event, session) => {
+                console.log('[AuthContext] onAuthStateChange event:', event)
+
+                if (event === 'SIGNED_OUT' || (!session && event === 'TOKEN_REFRESHED')) {
+                    setSession(null)
+                    setProfile(null)
+                    return
+                }
+
+                // USER_UPDATED: la contraseña fue actualizada exitosamente.
+                // NO interferir — welcome.tsx maneja su propio signOut después.
+                if (event === 'USER_UPDATED') {
+                    console.log('[AuthContext] USER_UPDATED — no interferir')
+                    return
+                }
+
+                // SIGNED_IN con invited=true: viene de verifyOtp en welcome.tsx.
+                // No establecer sesión normal — welcome.tsx la maneja directamente.
+                if (event === 'SIGNED_IN' && session?.user?.user_metadata?.invited === true) {
+                    console.log('[AuthContext] SIGNED_IN con invited=true — no interferir')
+                    return
+                }
+
                 setSession(session)
                 if (session?.user) {
                     await fetchProfile(session.user.id)
