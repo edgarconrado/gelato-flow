@@ -23,26 +23,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true)
 
     const fetchProfile = useCallback(async (userId: string) => {
-        const { data, error } = await supabase
+        // 1. Cargar perfil sin join para evitar problemas de RLS en stores
+        const { data: profileData, error: profileError } = await supabase
             .from('profiles')
-            .select(`
-        id, email, full_name, role, store_id,
-        store:stores (id, name, address, phone)
-      `)
+            .select('id, email, full_name, role, store_id')
             .eq('id', userId)
-            .order('created_at', { ascending: true })
-            .limit(1)
             .maybeSingle()
 
-        if (error) {
-            console.error('[AuthContext] Error al cargar perfil:', error.message)
+        if (profileError) {
+            console.error('[AuthContext] Error al cargar perfil:', profileError.message)
             setProfile(null)
-        } else if (!data) {
+            return
+        }
+        if (!profileData) {
             console.warn('[AuthContext] Sin perfil para userId:', userId)
             setProfile(null)
-        } else {
-            setProfile(data as Profile)
+            return
         }
+
+        // 2. Cargar tienda por separado usando store_id
+        let store = null
+        if (profileData.store_id) {
+            const { data: storeData, error: storeError } = await supabase
+                .from('stores')
+                .select('id, name, address, phone')
+                .eq('id', profileData.store_id)
+                .maybeSingle()
+
+            if (storeError) {
+                console.warn('[AuthContext] Error al cargar store:', storeError.message)
+            } else {
+                store = storeData
+            }
+        }
+
+        console.log('[AuthContext] Profile:', profileData.email, '| Store:', store?.name ?? 'null')
+        setProfile({ ...profileData, store } as Profile)
     }, [])
 
     const refreshProfile = useCallback(async () => {
