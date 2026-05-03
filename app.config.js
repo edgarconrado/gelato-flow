@@ -3,7 +3,7 @@ export default {
   expo: {
     name: 'Gelato Flow',
     slug: 'gelato-flow-app',
-    version: '1.0.0',
+    version: '1.0.0r02',
     icon: './assets/icon.png',
     splash: {
       image:           './assets/splash.png',
