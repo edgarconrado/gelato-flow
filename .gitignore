@@ -46,5 +46,8 @@ Thumbs.db
 *.swp
 *.swo
 
+# ─── Test ────────────────────────────────────────────────
+coverage/
+
 # Agregar eas.json al gitignore para no exponer las keys
 Add-Content .gitignore "`neas.json"
