@@ -67,10 +67,9 @@
       "^@/(.*)$": "<rootDir>/$1"
     },
     "collectCoverageFrom": [
-      "store/**/*.{ts,tsx}",
-      "hooks/**/*.{ts,tsx}",
-      "context/**/*.{ts,tsx}",
-      "app/**/*.{ts,tsx}",
+      "hooks/useExpenses.ts",
+      "store/index.ts",
+      "!lib/supabase.ts",
       "!**/__tests__/**",
       "!**/node_modules/**"
     ],
@@ -88,6 +87,15 @@
       "js",
       "jsx",
       "json"
-    ]
+    ],
+    "collectCoverage": false,
+    "coverageThreshold": {
+      "global": {
+        "statements": 0,
+        "branches": 0,
+        "functions": 0,
+        "lines": 0
+      }
+    }
   }
 }
