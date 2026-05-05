@@ -3,10 +3,10 @@ export default {
   expo: {
     name: 'Gelato Flow',
     slug: 'gelato-flow-app',
-    version: '1.0.1r01',
+    version: '1.0.1r03',
     icon: './assets/icon.png',
     splash: {
-      image:           './assets/splash.png',
+      image: './assets/splash.png',
       imageContentFit: 'contain',
       backgroundColor: '#1A1A2E',
     },
@@ -24,11 +24,11 @@ export default {
     },
     android: {
       package: 'com.jacarandalab.gelatoflow',
-      versionCode: 2,
+      versionCode: 4,
       edgeToEdgeEnabled: true,
       permissions: [
-        'android.permission.READ_MEDIA_IMAGES',
-        'android.permission.READ_EXTERNAL_STORAGE',
+        // READ_MEDIA_IMAGES removido — usamos Photo Picker (no requiere permiso)
+        // El Photo Picker de Android es el selector nativo del sistema
       ],
     },
     web: {
@@ -49,8 +49,8 @@ export default {
       [
         'expo-image-picker',
         {
-          photosPermission: 'Gelato Flow necesita acceso a tu galería para actualizar tu foto de perfil.',
-          cameraPermission: 'Gelato Flow necesita acceso a tu cámara para tomar una foto de perfil.',
+          photosPermission: 'Gelato Flow necesita acceso a tu galería para subir fotos.',
+          cameraPermission: 'Gelato Flow necesita acceso a tu cámara para tomar fotos.',
         },
       ],
     ],
