@@ -59,11 +59,9 @@ export default function ProductFormScreen() {
       // Import dinámico para evitar crash si el módulo no está disponible
       const ImagePicker = await import('expo-image-picker')
 
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-      if (status !== 'granted') {
-        Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.')
-        return
-      }
+      // Photo Picker en Android 13+ no requiere permiso explícito
+      // requestMediaLibraryPermissionsAsync retorna 'granted' automáticamente
+      await ImagePicker.requestMediaLibraryPermissionsAsync()
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: 'images',
