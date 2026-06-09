@@ -255,7 +255,6 @@ export default function CheckoutScreen() {
       }
 
     } catch (err: any) {
-      console.warn('[Ticket] Error:', err)
       Alert.alert('Error', 'No se pudo generar el ticket.')
     } finally {
       setSharing(false)

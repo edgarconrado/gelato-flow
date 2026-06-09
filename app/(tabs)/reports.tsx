@@ -13,6 +13,8 @@ import { useSalesReport, useSaleDetail } from '../../hooks/useData'
 import { useExpenses } from '../../hooks/useExpenses'
 import { Sale, DateFilter, PaymentMethod } from '../../lib/supabase'
 import { colors, radius, shadow } from '../../constants/theme'
+import { TrialBanner } from '../../components/ProGate'
+import { usePro } from '../../context/SubscriptionContext'
 
 const { width: SCREEN_W } = Dimensions.get('window')
 const CHART_W = SCREEN_W - 64  // padding de la card
@@ -34,8 +36,12 @@ export default function ReportsScreen() {
   const { data, loading } = useSalesReport(filter)
   const { total: totalGastos } = useExpenses(filter)
   const router = useRouter()
+  const { isPro } = usePro() // ← NUEVO
 
   const comp = data?.comparison
+
+  // Filtros disponibles según plan
+  const availableFilters = FILTERS.filter(f => isPro || f.value !== 'year')
 
   return (
     <SafeAreaView style={s.safe}>
@@ -52,9 +58,11 @@ export default function ReportsScreen() {
         </TouchableOpacity>
       </View>
 
+      <TrialBanner />
+
       {/* Filtros */}
       <View style={s.filterRow}>
-        {FILTERS.map(f => (
+        {availableFilters.map(f => (
           <TouchableOpacity
             key={f.value}
             style={[s.pill, filter === f.value && s.pillActive]}

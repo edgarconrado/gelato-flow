@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (profileData.store_id) {
             const { data: storeData, error: storeError } = await supabase
                 .from('stores')
-                .select('id, name, address, phone')
+                .select('id, name, address, phone, subscription_status, subscription_expires_at, trial_started_at, revenuecat_app_user_id')
                 .eq('id', profileData.store_id)
                 .maybeSingle()
 

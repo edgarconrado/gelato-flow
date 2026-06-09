@@ -14,6 +14,7 @@ import { useLowStock } from '../../hooks/useLowStock'
 import { useAllProducts, useCategories } from '../../hooks/useData'
 import { useAuth } from '../../context/AuthContext'
 import { colors, radius, shadow } from '../../constants/theme'
+import { usePro } from '../../context/SubscriptionContext'
 
 export default function InventoryScreen() {
   const [search, setSearch] = useState('')
@@ -23,7 +24,12 @@ export default function InventoryScreen() {
   const { profile } = useAuth()
   const router = useRouter()
   const { count: lowStockCount } = useLowStock()
+  const { isPro } = usePro()
   const canEdit = profile?.role !== 'cashier'
+
+  const FREE_LIMIT = 20
+  const activeProducts = products.filter(p => p.active)
+  const atLimit = !isPro && activeProducts.length >= FREE_LIMIT
 
   const filtered = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase())
@@ -40,7 +46,14 @@ export default function InventoryScreen() {
 
       {/* Header */}
       <View style={s.header}>
-        <Text style={s.title}>Inventario</Text>
+        <View>
+          <Text style={s.title}>Inventario</Text>
+          {!isPro && (
+            <Text style={[s.limitCounter, atLimit && { color: colors.accent }]}>
+              {activeProducts.length}/{FREE_LIMIT} productos
+            </Text>
+          )}
+        </View>
         <View style={s.headerBtns}>
           {/* Botón alertas de stock */}
           <TouchableOpacity
@@ -65,13 +78,44 @@ export default function InventoryScreen() {
             </TouchableOpacity>
           )}
           {canEdit && (
-            <TouchableOpacity style={s.addBtn} onPress={() => router.push('/inventory/form')}>
-              <Ionicons name="add" size={18} color={colors.ink} />
+            <TouchableOpacity
+              style={[s.addBtn, atLimit && s.addBtnDisabled]}
+              onPress={() => {
+                if (atLimit) {
+                  Alert.alert(
+                    '🔒 Límite alcanzado',
+                    'El plan gratuito permite hasta 20 productos activos. Actualiza a Pro para agregar ilimitados.',
+                    [
+                      { text: 'Ahora no', style: 'cancel' },
+                      { text: 'Ver Pro', onPress: () => router.push('/(tabs)/profile') },
+                    ]
+                  )
+                  return
+                }
+                router.push('/inventory/form')
+              }}
+            >
+              <Ionicons name={atLimit ? 'lock-closed' : 'add'} size={18} color={colors.ink} />
               <Text style={s.addBtnText}>Nuevo</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
+
+      {/* Banner límite Free */}
+      {atLimit && (
+        <TouchableOpacity
+          style={s.limitBanner}
+          onPress={() => router.push('/(tabs)/profile')}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="lock-closed" size={14} color="#fff" style={{ marginRight: 6 }} />
+          <Text style={s.limitBannerText}>
+            Límite de 20 productos alcanzado · <Text style={{ fontWeight: '700' }}>Actualiza a Pro</Text>
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
+        </TouchableOpacity>
+      )}
 
       {/* Search */}
       <View style={s.searchWrap}>
@@ -295,6 +339,14 @@ const s = StyleSheet.create({
     backgroundColor: colors.primary,
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: radius.md,
   },
+  addBtnDisabled: { backgroundColor: colors.inkMuted },
+  limitBanner: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.accent,
+    paddingVertical: 10, paddingHorizontal: 16,
+  },
+  limitBannerText: { flex: 1, color: '#fff', fontSize: 13, fontWeight: '500' },
+  limitCounter: { fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
   addBtnText: { color: colors.ink, fontWeight: '700', fontSize: 13 },
 
   alertBtn: {

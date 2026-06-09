@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLowStock, LowStockProduct } from '../../hooks/useLowStock'
 import { supabase } from '../../lib/supabase'
 import { colors, radius, shadow } from '../../constants/theme'
+import { ProGate, TrialBanner } from '../../components/ProGate'
 
 export default function StockAlertsScreen() {
     const router = useRouter()
@@ -43,127 +44,129 @@ export default function StockAlertsScreen() {
     }
 
     return (
-        <SafeAreaView style={s.safe}>
-
-            {/* Header */}
-            <View style={s.header}>
-                <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-                    <Ionicons name="chevron-back" size={22} color="rgba(255,255,255,0.7)" />
-                </TouchableOpacity>
-                <View style={{ flex: 1 }}>
-                    <Text style={s.title}>Alertas de stock</Text>
-                    <Text style={s.subtitle}>
-                        {count === 0 ? 'Sin alertas activas' : `${count} producto${count !== 1 ? 's' : ''} con stock bajo`}
-                    </Text>
+        <ProGate feature="Alertas de Stock">
+            <SafeAreaView style={s.safe}>
+                <TrialBanner />
+                {/* Header */}
+                <View style={s.header}>
+                    <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+                        <Ionicons name="chevron-back" size={22} color="rgba(255,255,255,0.7)" />
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                        <Text style={s.title}>Alertas de stock</Text>
+                        <Text style={s.subtitle}>
+                            {count === 0 ? 'Sin alertas activas' : `${count} producto${count !== 1 ? 's' : ''} con stock bajo`}
+                        </Text>
+                    </View>
+                    <TouchableOpacity style={s.refreshBtn} onPress={refetch} disabled={loading}>
+                        <Ionicons name="refresh-outline" size={18} color={colors.primary} />
+                    </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={s.refreshBtn} onPress={refetch} disabled={loading}>
-                    <Ionicons name="refresh-outline" size={18} color={colors.primary} />
-                </TouchableOpacity>
-            </View>
 
-            {loading ? (
-                <View style={s.center}>
-                    <ActivityIndicator color={colors.primary} />
-                </View>
-            ) : count === 0 ? (
-                <View style={s.center}>
-                    <Text style={{ fontSize: 56, marginBottom: 16 }}>✅</Text>
-                    <Text style={s.emptyTitle}>Todo en orden</Text>
-                    <Text style={s.emptyDesc}>
-                        Ningún producto está por debajo de su umbral mínimo de stock.
-                    </Text>
-                </View>
-            ) : (
-                <FlatList
-                    data={products}
-                    keyExtractor={p => p.id}
-                    contentContainerStyle={s.list}
-                    refreshing={loading}
-                    onRefresh={refetch}
-                    ListHeaderComponent={
-                        <View style={s.legendRow}>
-                            {[
-                                { color: '#E53E3E', label: 'Agotado' },
-                                { color: colors.accent, label: 'Crítico' },
-                                { color: colors.amber, label: 'Stock bajo' },
-                            ].map(l => (
-                                <View key={l.label} style={s.legendItem}>
-                                    <View style={[s.legendDot, { backgroundColor: l.color }]} />
-                                    <Text style={s.legendText}>{l.label}</Text>
-                                </View>
-                            ))}
-                        </View>
-                    }
-                    renderItem={({ item }) => {
-                        const urgency = getUrgency(item)
-                        const pct = item.min_stock > 0
-                            ? Math.max(0, Math.min(100, (item.stock / item.min_stock) * 100))
-                            : 0
-
-                        return (
-                            <View style={[s.card, { borderLeftColor: urgency.color, borderLeftWidth: 3 }]}>
-                                {/* Icono / imagen */}
-                                <View style={s.cardLeft}>
-                                    {item.image_url ? (
-                                        <Image
-                                            source={{ uri: item.image_url }}
-                                            style={s.productImage}
-                                            contentFit="cover"
-                                        />
-                                    ) : (
-                                        <View style={[s.emojiWrap, { backgroundColor: `${urgency.color}15` }]}>
-                                            <Text style={{ fontSize: 24 }}>{item.category_emoji ?? '📦'}</Text>
-                                        </View>
-                                    )}
-                                </View>
-
-                                {/* Info */}
-                                <View style={s.cardBody}>
-                                    <View style={s.cardTop}>
-                                        <Text style={s.productName} numberOfLines={1}>{item.name}</Text>
-                                        <View style={[s.urgencyBadge, { backgroundColor: `${urgency.color}18` }]}>
-                                            <Ionicons name={urgency.icon} size={11} color={urgency.color} />
-                                            <Text style={[s.urgencyText, { color: urgency.color }]}>{urgency.label}</Text>
-                                        </View>
+                {loading ? (
+                    <View style={s.center}>
+                        <ActivityIndicator color={colors.primary} />
+                    </View>
+                ) : count === 0 ? (
+                    <View style={s.center}>
+                        <Text style={{ fontSize: 56, marginBottom: 16 }}>✅</Text>
+                        <Text style={s.emptyTitle}>Todo en orden</Text>
+                        <Text style={s.emptyDesc}>
+                            Ningún producto está por debajo de su umbral mínimo de stock.
+                        </Text>
+                    </View>
+                ) : (
+                    <FlatList
+                        data={products}
+                        keyExtractor={p => p.id}
+                        contentContainerStyle={s.list}
+                        refreshing={loading}
+                        onRefresh={refetch}
+                        ListHeaderComponent={
+                            <View style={s.legendRow}>
+                                {[
+                                    { color: '#E53E3E', label: 'Agotado' },
+                                    { color: colors.accent, label: 'Crítico' },
+                                    { color: colors.amber, label: 'Stock bajo' },
+                                ].map(l => (
+                                    <View key={l.label} style={s.legendItem}>
+                                        <View style={[s.legendDot, { backgroundColor: l.color }]} />
+                                        <Text style={s.legendText}>{l.label}</Text>
                                     </View>
+                                ))}
+                            </View>
+                        }
+                        renderItem={({ item }) => {
+                            const urgency = getUrgency(item)
+                            const pct = item.min_stock > 0
+                                ? Math.max(0, Math.min(100, (item.stock / item.min_stock) * 100))
+                                : 0
 
-                                    <Text style={s.categoryLabel}>{item.category_name ?? '—'}</Text>
-
-                                    {/* Barra de progreso */}
-                                    <View style={s.barWrap}>
-                                        <View style={[s.barFill, {
-                                            width: `${pct}%`,
-                                            backgroundColor: urgency.color,
-                                        }]} />
-                                    </View>
-
-                                    <View style={s.stockRow}>
-                                        <Text style={s.stockCurrent}>
-                                            <Text style={[s.stockNum, { color: urgency.color }]}>{item.stock}</Text>
-                                            {' '}de {item.min_stock} mínimo
-                                        </Text>
-                                        {item.units_below_threshold > 0 && (
-                                            <Text style={[s.stockDiff, { color: urgency.color }]}>
-                                                −{item.units_below_threshold} uds
-                                            </Text>
+                            return (
+                                <View style={[s.card, { borderLeftColor: urgency.color, borderLeftWidth: 3 }]}>
+                                    {/* Icono / imagen */}
+                                    <View style={s.cardLeft}>
+                                        {item.image_url ? (
+                                            <Image
+                                                source={{ uri: item.image_url }}
+                                                style={s.productImage}
+                                                contentFit="cover"
+                                            />
+                                        ) : (
+                                            <View style={[s.emojiWrap, { backgroundColor: `${urgency.color}15` }]}>
+                                                <Text style={{ fontSize: 24 }}>{item.category_emoji ?? '📦'}</Text>
+                                            </View>
                                         )}
                                     </View>
-                                </View>
 
-                                {/* Botón agregar stock */}
-                                <TouchableOpacity
-                                    style={[s.addBtn, { backgroundColor: `${urgency.color}12`, borderColor: `${urgency.color}30` }]}
-                                    onPress={() => handleAddStock(item)}
-                                    activeOpacity={0.8}
-                                >
-                                    <Ionicons name="add" size={18} color={urgency.color} />
-                                </TouchableOpacity>
-                            </View>
-                        )
-                    }}
-                />
-            )}
-        </SafeAreaView>
+                                    {/* Info */}
+                                    <View style={s.cardBody}>
+                                        <View style={s.cardTop}>
+                                            <Text style={s.productName} numberOfLines={1}>{item.name}</Text>
+                                            <View style={[s.urgencyBadge, { backgroundColor: `${urgency.color}18` }]}>
+                                                <Ionicons name={urgency.icon} size={11} color={urgency.color} />
+                                                <Text style={[s.urgencyText, { color: urgency.color }]}>{urgency.label}</Text>
+                                            </View>
+                                        </View>
+
+                                        <Text style={s.categoryLabel}>{item.category_name ?? '—'}</Text>
+
+                                        {/* Barra de progreso */}
+                                        <View style={s.barWrap}>
+                                            <View style={[s.barFill, {
+                                                width: `${pct}%`,
+                                                backgroundColor: urgency.color,
+                                            }]} />
+                                        </View>
+
+                                        <View style={s.stockRow}>
+                                            <Text style={s.stockCurrent}>
+                                                <Text style={[s.stockNum, { color: urgency.color }]}>{item.stock}</Text>
+                                                {' '}de {item.min_stock} mínimo
+                                            </Text>
+                                            {item.units_below_threshold > 0 && (
+                                                <Text style={[s.stockDiff, { color: urgency.color }]}>
+                                                    −{item.units_below_threshold} uds
+                                                </Text>
+                                            )}
+                                        </View>
+                                    </View>
+
+                                    {/* Botón agregar stock */}
+                                    <TouchableOpacity
+                                        style={[s.addBtn, { backgroundColor: `${urgency.color}12`, borderColor: `${urgency.color}30` }]}
+                                        onPress={() => handleAddStock(item)}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Ionicons name="add" size={18} color={urgency.color} />
+                                    </TouchableOpacity>
+                                </View>
+                            )
+                        }}
+                    />
+                )}
+            </SafeAreaView>
+        </ProGate>
     )
 }
 

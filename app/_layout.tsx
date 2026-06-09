@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import * as SplashScreen from 'expo-splash-screen'
 import { AuthProvider, useAuth } from '../context/AuthContext'
+import { SubscriptionProvider } from '../context/SubscriptionContext' // ← NUEVO
 import { useNotifications } from '../hooks/useNotifications'
 import { AnimatedSplash } from '../components/AnimatedSplash'
 
@@ -38,10 +39,13 @@ function RootGuard() {
     <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="auth/login" />
+        <Stack.Screen name="auth/register" options={{ headerShown: false }} />
+        <Stack.Screen name="auth/confirm" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="pos/checkout" options={{ presentation: 'modal' }} />
         <Stack.Screen name="inventory/form" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="paywall" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="team/index" options={{ headerShown: false }} />
         <Stack.Screen name="caja/index" options={{ headerShown: false }} />
         <Stack.Screen name="stock/index" options={{ headerShown: false }} />
@@ -63,7 +67,10 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="light" />
       <AuthProvider>
-        <RootGuard />
+        {/* SubscriptionProvider va dentro de AuthProvider porque necesita el profile */}
+        <SubscriptionProvider>
+          <RootGuard />
+        </SubscriptionProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   )

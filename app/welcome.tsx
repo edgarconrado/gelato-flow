@@ -54,13 +54,10 @@ export default function WelcomeScreen() {
                     type: t,
                 })
                 if (!error && data?.user) {
-                    console.log('[Welcome] Token OK, type:', t, 'user:', data.user.email)
                     verified = true
                     break
                 }
-                console.log('[Welcome] verifyOtp type', t, ':', error?.message)
             } catch (e) {
-                console.log('[Welcome] Exception type', t, ':', e)
             }
         }
 
@@ -100,7 +97,6 @@ export default function WelcomeScreen() {
                 password,
                 data: { full_name: fullName.trim() },
             })
-            console.log('[Welcome] updateUser:', updateError?.message ?? 'OK')
 
             if (updateError) {
                 Alert.alert('Error', updateError.message)
@@ -124,10 +120,8 @@ export default function WelcomeScreen() {
                     p_full_name: fullName.trim(),
                 })
 
-            console.log('[Welcome] accept_invitation:', JSON.stringify(rpcData), rpcError?.message)
 
             if (rpcError || rpcData?.error) {
-                console.warn('[Welcome] No se pudo crear perfil:', rpcError?.message ?? rpcData?.error)
                 // No bloqueamos — el usuario puede entrar igual y el admin ajusta
             }
 
@@ -144,7 +138,6 @@ export default function WelcomeScreen() {
             )
 
         } catch (err: any) {
-            console.log('[Welcome] Error:', err)
             Alert.alert('Error inesperado', err?.message ?? 'Intenta de nuevo.')
             setLoading(false)
         }
