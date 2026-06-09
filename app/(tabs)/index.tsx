@@ -1,6 +1,6 @@
 // app/(tabs)/index.tsx — POS · Ink & Mint redesign v2
 import { useState, useEffect, useRef } from 'react'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput } from 'react-native'
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Alert } from 'react-native'
 import Animated, {
   useSharedValue, useAnimatedStyle, withSpring, withSequence,
   withTiming, Easing,
@@ -27,7 +27,7 @@ export default function POSScreen() {
   const { categories, loading: loadingCats } = useCategories()
   const { products, loading: loadingProducts } = useProducts(selectedCategoryId)
   const { products: allProducts } = useAllProducts()
-  const { items, addItem, total } = useCartStore()
+  const { items, addItem, total, clearCart } = useCartStore()
   const { profile } = useAuth()
   const router = useRouter()
 
@@ -203,22 +203,49 @@ export default function POSScreen() {
 
       {/* ── Barra de total ──────────────────────────────────── */}
       {itemCount > 0 && (
-        <TouchableOpacity
-          style={s.totalBar}
-          onPress={() => router.push('/pos/checkout')}
-          activeOpacity={0.9}
-        >
-          <View>
-            <Text style={s.totalBarSub}>{itemCount} producto{itemCount !== 1 ? 's' : ''}</Text>
-            <Animated.Text style={[s.totalBarAmount, totalBounce]}>
-              ${total().toFixed(2)}
-            </Animated.Text>
-          </View>
-          <View style={s.payBtn}>
-            <Text style={s.payBtnText}>Cobrar</Text>
-            <Ionicons name="arrow-forward" size={15} color={colors.ink} />
-          </View>
-        </TouchableOpacity>
+        <View style={s.totalBar}>
+          {/* Botón limpiar carrito */}
+          <TouchableOpacity
+            style={s.clearBtn}
+            onPress={() => {
+              Alert.alert(
+                'Limpiar carrito',
+                '¿Quieres eliminar todos los productos del carrito?',
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Limpiar', style: 'destructive',
+                    onPress: () => {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+                      clearCart()
+                    }
+                  },
+                ]
+              )
+            }}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="trash-outline" size={18} color={colors.accent} />
+          </TouchableOpacity>
+
+          {/* Info + cobrar */}
+          <TouchableOpacity
+            style={s.totalBarRight}
+            onPress={() => router.push('/pos/checkout')}
+            activeOpacity={0.9}
+          >
+            <View>
+              <Text style={s.totalBarSub}>{itemCount} producto{itemCount !== 1 ? 's' : ''}</Text>
+              <Animated.Text style={[s.totalBarAmount, totalBounce]}>
+                ${total().toFixed(2)}
+              </Animated.Text>
+            </View>
+            <View style={s.payBtn}>
+              <Text style={s.payBtnText}>Cobrar</Text>
+              <Ionicons name="arrow-forward" size={15} color={colors.ink} />
+            </View>
+          </TouchableOpacity>
+        </View>
       )}
 
     </SafeAreaView>
@@ -420,9 +447,18 @@ const s = StyleSheet.create({
     backgroundColor: colors.ink,
     marginHorizontal: 14, marginBottom: 76,
     borderRadius: radius.xl,
-    paddingVertical: 14, paddingHorizontal: 20,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 10, paddingHorizontal: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
     ...shadow.header,
+  },
+  clearBtn: {
+    width: 44, height: 44, borderRadius: radius.md,
+    backgroundColor: `${colors.accent}15`,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  totalBarRight: {
+    flex: 1, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'space-between',
   },
   totalBarSub: { color: 'rgba(255,255,255,0.4)', fontSize: 11, marginBottom: 2 },
   totalBarAmount: { color: '#fff', fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },

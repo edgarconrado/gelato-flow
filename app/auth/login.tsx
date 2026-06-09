@@ -96,6 +96,15 @@ export default function LoginScreen() {
         </View>
 
         <TouchableOpacity
+          style={{ marginBottom: 12, alignItems: 'center' }}
+          onPress={() => router.push('/auth/register')}
+        >
+          <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}>
+            + Crear mi negocio
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={{ marginBottom: 16, alignItems: 'center' }}
           onPress={() => router.push('/welcome')}
         >

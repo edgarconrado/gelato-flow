@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase, Profile, StoreInvitation } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { colors, radius, shadow } from '../../constants/theme'
+import { ProGate, TrialBanner } from '../../components/ProGate'
 
 const ROLE_INFO = {
     owner: { label: 'Propietario', color: '#F5A623', icon: '👑' },
@@ -118,83 +119,86 @@ export default function TeamScreen() {
     }
 
     return (
-        <SafeAreaView style={s.safe}>
-            {/* Header */}
-            <View style={s.header}>
-                <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-                    <Ionicons name="chevron-back" size={22} color="rgba(255,255,255,0.7)" />
-                </TouchableOpacity>
-                <View style={{ flex: 1 }}>
-                    <Text style={s.title}>Equipo</Text>
-                    <Text style={s.subtitle}>{members.length} miembro{members.length !== 1 ? 's' : ''}</Text>
-                </View>
-                {isOwner && (
-                    <TouchableOpacity style={s.inviteBtn} onPress={() => setShowInvite(true)}>
-                        <Ionicons name="person-add-outline" size={16} color={colors.ink} />
-                        <Text style={s.inviteBtnText}>Invitar</Text>
+        <ProGate feature="Gestión de Equipo">
+            <SafeAreaView style={s.safe}>
+                <TrialBanner />
+                {/* Header */}
+                <View style={s.header}>
+                    <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+                        <Ionicons name="chevron-back" size={22} color="rgba(255,255,255,0.7)" />
                     </TouchableOpacity>
-                )}
-            </View>
-
-            {loading ? (
-                <View style={s.center}><ActivityIndicator color={colors.primary} /></View>
-            ) : (
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 20, paddingBottom: 90 }}>
-
-                    {/* Miembros activos */}
-                    <View>
-                        <Text style={s.sectionLabel}>MIEMBROS ACTIVOS</Text>
-                        <View style={s.card}>
-                            {members.map((member, idx) => (
-                                <MemberRow
-                                    key={member.id}
-                                    member={member}
-                                    isSelf={member.id === profile?.id}
-                                    isOwner={isOwner}
-                                    isLast={idx === members.length - 1}
-                                    onChangeRole={() => handleChangeRole(member)}
-                                    onRemove={() => handleRemoveMember(member)}
-                                />
-                            ))}
-                        </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={s.title}>Equipo</Text>
+                        <Text style={s.subtitle}>{members.length} miembro{members.length !== 1 ? 's' : ''}</Text>
                     </View>
+                    {isOwner && (
+                        <TouchableOpacity style={s.inviteBtn} onPress={() => setShowInvite(true)}>
+                            <Ionicons name="person-add-outline" size={16} color={colors.ink} />
+                            <Text style={s.inviteBtnText}>Invitar</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
 
-                    {/* Invitaciones pendientes */}
-                    {isOwner && invitations.length > 0 && (
+                {loading ? (
+                    <View style={s.center}><ActivityIndicator color={colors.primary} /></View>
+                ) : (
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 20, paddingBottom: 90 }}>
+
+                        {/* Miembros activos */}
                         <View>
-                            <Text style={s.sectionLabel}>INVITACIONES PENDIENTES</Text>
+                            <Text style={s.sectionLabel}>MIEMBROS ACTIVOS</Text>
                             <View style={s.card}>
-                                {invitations.map((inv, idx) => (
-                                    <InvitationRow
-                                        key={inv.id}
-                                        invitation={inv}
-                                        isLast={idx === invitations.length - 1}
-                                        onCancel={() => handleCancelInvitation(inv)}
+                                {members.map((member, idx) => (
+                                    <MemberRow
+                                        key={member.id}
+                                        member={member}
+                                        isSelf={member.id === profile?.id}
+                                        isOwner={isOwner}
+                                        isLast={idx === members.length - 1}
+                                        onChangeRole={() => handleChangeRole(member)}
+                                        onRemove={() => handleRemoveMember(member)}
                                     />
                                 ))}
                             </View>
                         </View>
-                    )}
 
-                    {/* Info de roles */}
-                    <View style={s.rolesInfo}>
-                        <Text style={s.rolesInfoTitle}>Permisos por rol</Text>
-                        <RoleRow icon="👑" role="Propietario" perms="Todo: ventas, inventario, equipo, reportes" />
-                        <RoleRow icon="🧑‍💼" role="Gerente" perms="Ventas, inventario y reportes" />
-                        <RoleRow icon="🧑‍💻" role="Cajero" perms="Solo ventas y consulta de inventario" />
-                    </View>
+                        {/* Invitaciones pendientes */}
+                        {isOwner && invitations.length > 0 && (
+                            <View>
+                                <Text style={s.sectionLabel}>INVITACIONES PENDIENTES</Text>
+                                <View style={s.card}>
+                                    {invitations.map((inv, idx) => (
+                                        <InvitationRow
+                                            key={inv.id}
+                                            invitation={inv}
+                                            isLast={idx === invitations.length - 1}
+                                            onCancel={() => handleCancelInvitation(inv)}
+                                        />
+                                    ))}
+                                </View>
+                            </View>
+                        )}
 
-                </ScrollView>
-            )}
+                        {/* Info de roles */}
+                        <View style={s.rolesInfo}>
+                            <Text style={s.rolesInfoTitle}>Permisos por rol</Text>
+                            <RoleRow icon="👑" role="Propietario" perms="Todo: ventas, inventario, equipo, reportes" />
+                            <RoleRow icon="🧑‍💼" role="Gerente" perms="Ventas, inventario y reportes" />
+                            <RoleRow icon="🧑‍💻" role="Cajero" perms="Solo ventas y consulta de inventario" />
+                        </View>
 
-            {/* Modal invitar */}
-            <InviteModal
-                visible={showInvite}
-                storeId={profile?.store_id ?? ''}
-                onClose={() => setShowInvite(false)}
-                onSuccess={() => { setShowInvite(false); load() }}
-            />
-        </SafeAreaView>
+                    </ScrollView>
+                )}
+
+                {/* Modal invitar */}
+                <InviteModal
+                    visible={showInvite}
+                    storeId={profile?.store_id ?? ''}
+                    onClose={() => setShowInvite(false)}
+                    onSuccess={() => { setShowInvite(false); load() }}
+                />
+            </SafeAreaView>
+        </ProGate>
     )
 }
 
@@ -323,9 +327,6 @@ function InviteModal({ visible, storeId, onClose, onSuccess }: {
 
             // DEBUG: mostrar la URL exacta que se va a llamar
             const url = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/smart-handler`
-            console.log('[Invite] URL:', url)
-            console.log('[Invite] Token present:', !!session?.access_token)
-
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -338,9 +339,6 @@ function InviteModal({ visible, storeId, onClose, onSuccess }: {
 
             // DEBUG: mostrar status y body completo
             const rawText = await response.text()
-            console.log('[Invite] Status:', response.status)
-            console.log('[Invite] Body:', rawText)
-
             let result: any = {}
             try { result = JSON.parse(rawText) } catch { result = { error: rawText } }
 
@@ -361,7 +359,6 @@ function InviteModal({ visible, storeId, onClose, onSuccess }: {
             setRole('cashier')
 
         } catch (err: any) {
-            console.log('[Invite] Catch error:', err)
             Alert.alert('Error de red', `${err?.message ?? 'Sin detalle'}\n\nURL: ${process.env.EXPO_PUBLIC_SUPABASE_URL}`)
         } finally {
             setSaving(false)

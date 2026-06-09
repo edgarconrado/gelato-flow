@@ -10,6 +10,8 @@ import { useRouter } from 'expo-router'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { colors, radius, shadow } from '../../constants/theme'
+import { usePro } from '../../context/SubscriptionContext'
+import Constants from 'expo-constants'
 
 const ROLE_LABELS: Record<string, { label: string; icon: string }> = {
   owner: { label: 'Propietario', icon: '👑' },
@@ -19,6 +21,7 @@ const ROLE_LABELS: Record<string, { label: string; icon: string }> = {
 
 export default function ProfileScreen() {
   const { profile, signOut, refreshProfile } = useAuth()
+  const { isPro, status, trialDaysLeft, refresh: refreshSub } = usePro()
   const router = useRouter()
 
   // Diferir render pesado para evitar ANR en Android
@@ -82,6 +85,84 @@ export default function ProfileScreen() {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Salir', style: 'destructive', onPress: signOut },
     ])
+  }
+
+  const handleDeleteAccount = () => {
+    // Si es Pro, advertir primero sobre la suscripción
+    if (isPro && (status === 'pro')) {
+      Alert.alert(
+        '⚠️ Tienes una suscripción activa',
+        `Antes de eliminar tu cuenta, cancela tu suscripción en ${Platform.OS === 'ios' ? 'App Store → Tu cuenta → Suscripciones' : 'Google Play → Suscripciones'} → GelatoFlow.\n\n¿Ya cancelaste tu suscripción?`,
+        [
+          { text: 'Aún no, ir a cancelar', style: 'cancel' },
+          {
+            text: 'Sí, ya cancelé',
+            onPress: () => confirmarEliminacion(),
+          }
+        ]
+      )
+      return
+    }
+    confirmarEliminacion()
+  }
+
+  const confirmarEliminacion = () => {
+    const esOwner = profile?.role === 'owner'
+    Alert.alert(
+      '⚠️ Eliminar cuenta',
+      esOwner
+        ? 'Esta acción eliminará permanentemente tu cuenta y todos los datos de tu negocio. No se puede deshacer.'
+        : 'Esta acción eliminará permanentemente tu cuenta. Perderás acceso al negocio.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar cuenta',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              '¿Estás seguro?',
+              esOwner
+                ? 'Se eliminarán todas tus ventas, productos, gastos y equipo.'
+                : 'Se eliminará tu acceso al negocio.',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Sí, eliminar todo',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession()
+                      if (!session) throw new Error('No hay sesión activa')
+
+                      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL
+                        ?? (Constants.expoConfig?.extra as any)?.supabaseUrl ?? ''
+
+                      const response = await fetch(
+                        `${supabaseUrl}/functions/v1/delete-account`,
+                        {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session.access_token}`,
+                          },
+                        }
+                      )
+
+                      const result = await response.json()
+                      if (!response.ok || result.error) throw new Error(result.error)
+
+                      await signOut()
+                    } catch (err: any) {
+                      Alert.alert('Error', err.message ?? 'No se pudo eliminar la cuenta. Contacta a soporte en soporte@jacaranda-lab.com')
+                    }
+                  }
+                }
+              ]
+            )
+          }
+        }
+      ]
+    )
   }
 
   return (
@@ -232,6 +313,93 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* ── Suscripción (solo owner) ──────────────────────── */}
+        {profile.role === 'owner' && (
+          <View style={s.section}>
+            <Text style={s.sectionLabel}>PLAN</Text>
+            <View style={s.card}>
+              {/* Badge de estado */}
+              <View style={s.subHeader}>
+                <View style={[s.subBadge, {
+                  backgroundColor:
+                    status === 'pro' || status === 'gifted' ? `${colors.primary}20` :
+                      status === 'trial' ? `${colors.amber}20` :
+                        `${colors.accent}15`
+                }]}>
+                  <Text style={[s.subBadgeText, {
+                    color:
+                      status === 'pro' || status === 'gifted' ? colors.primary :
+                        status === 'trial' ? colors.amber :
+                          colors.accent
+                  }]}>
+                    {status === 'pro' ? '⭐ Pro' :
+                      status === 'gifted' ? '🎁 Pro (Regalo)' :
+                        status === 'trial' ? '🕐 Prueba gratuita' :
+                          '🔒 Plan gratuito'}
+                  </Text>
+                </View>
+                {status === 'trial' && trialDaysLeft !== null && (
+                  <Text style={s.subDays}>
+                    {trialDaysLeft === 1 ? 'Último día' : `${trialDaysLeft} días restantes`}
+                  </Text>
+                )}
+              </View>
+
+              <Text style={s.subDesc}>
+                {status === 'pro' || status === 'gifted'
+                  ? `Tienes acceso completo. Puedes cancelar cuando quieras desde ${Platform.OS === 'ios' ? 'App Store' : 'Google Play'}.`
+                  : status === 'trial'
+                    ? 'Disfruta todas las funciones Pro durante tu período de prueba.'
+                    : 'Actualiza para desbloquear Gastos, Equipo y Reportes anuales.'}
+              </Text>
+
+              {/* Botón upgrade o cancelar */}
+              {!isPro ? (
+                <TouchableOpacity
+                  style={s.subBtn}
+                  activeOpacity={0.85}
+                  onPress={() => router.push('/paywall')}
+                >
+                  <Ionicons name="star" size={15} color={colors.ink} style={{ marginRight: 6 }} />
+                  <Text style={s.subBtnText}>Suscribirse a Pro</Text>
+                </TouchableOpacity>
+              ) : (
+                <View>
+                  {/* Info de cancelación */}
+                  <View style={s.cancelInfo}>
+                    <Ionicons name="information-circle-outline" size={16} color={colors.inkMuted} />
+                    <Text style={s.cancelInfoText}>
+                      Para cancelar tu suscripción ve a{' '}
+                      {Platform.OS === 'ios' ? (
+                        <Text style={{ fontWeight: '700' }}>App Store → Tu cuenta → Suscripciones → GelatoFlow</Text>
+                      ) : (
+                        <Text style={{ fontWeight: '700' }}>Google Play → Suscripciones → GelatoFlow</Text>
+                      )}
+                      {' '}y selecciona "Cancelar suscripción".
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={s.subBtnOutline}
+                    activeOpacity={0.85}
+                    onPress={async () => {
+                      try {
+                        const Purchases = (await import('react-native-purchases')).default
+                        await Purchases.restorePurchases()
+                        await refreshSub()
+                        Alert.alert('✓ Compras restauradas')
+                      } catch {
+                        Alert.alert('Error', 'No se pudieron restaurar las compras.')
+                      }
+                    }}
+                  >
+                    <Text style={s.subBtnOutlineText}>Restaurar compras</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
         {/* ── Cerrar sesión ─────────────────────────────────── */}
         <View style={s.section}>
           <TouchableOpacity
@@ -242,6 +410,33 @@ export default function ProfileScreen() {
             <Ionicons name="log-out-outline" size={17} color={colors.accent} />
             <Text style={s.signOutText}>Cerrar sesión</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* ── Zona de peligro ───────────────────────────────── */}
+        <View style={[s.section, { marginTop: 8, marginBottom: 32 }]}>
+          <Text style={s.dangerLabel}>⚠️ ZONA DE PELIGRO</Text>
+          <View style={s.dangerCard}>
+            <View style={s.dangerInfo}>
+              <Ionicons name="warning-outline" size={20} color={colors.accent} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.dangerTitle}>Eliminar cuenta</Text>
+                <Text style={s.dangerDesc}>
+                  {profile.role === 'owner'
+                    ? 'Esto borrará permanentemente tu cuenta, tu negocio y todos los datos asociados (ventas, productos, equipo, gastos). Esta acción no se puede deshacer.'
+                    : 'Esto eliminará tu cuenta de GelatoFlow. Perderás acceso al negocio y no podrás recuperar tu cuenta. Esta acción no se puede deshacer.'
+                  }
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={s.deleteBtn}
+              onPress={handleDeleteAccount}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="trash-outline" size={16} color="#fff" />
+              <Text style={s.deleteBtnText}>Eliminar mi cuenta permanentemente</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={{ height: 20 }} />
@@ -418,4 +613,55 @@ const s = StyleSheet.create({
     backgroundColor: `${colors.accent}07`,
   },
   signOutText: { color: colors.accent, fontSize: 15, fontWeight: '600' },
+
+  // ── Suscripción ──────────────────────────────────────────────
+  subHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, paddingBottom: 8 },
+  subBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: radius.pill },
+  subBadgeText: { fontSize: 13, fontWeight: '700' },
+  subDays: { fontSize: 12, color: colors.amber, fontWeight: '600' },
+  subDesc: { fontSize: 13, color: colors.inkMuted, lineHeight: 18, paddingHorizontal: 14, paddingBottom: 14 },
+  subBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.primary, marginHorizontal: 14, marginBottom: 14,
+    paddingVertical: 13, borderRadius: radius.md,
+  },
+  subBtnText: { color: colors.ink, fontWeight: '700', fontSize: 14 },
+  subBtnOutline: {
+    alignItems: 'center', marginHorizontal: 14, marginBottom: 14,
+    paddingVertical: 12, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  subBtnOutlineText: { color: colors.inkMuted, fontWeight: '500', fontSize: 13 },
+  cancelInfo: {
+    flexDirection: 'row', gap: 8, alignItems: 'flex-start',
+    marginHorizontal: 14, marginBottom: 12,
+    padding: 12, borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 0.5, borderColor: colors.border,
+  },
+  cancelInfoText: { fontSize: 12, color: colors.inkMuted, lineHeight: 17, flex: 1 },
+
+  // ── Zona de peligro ──────────────────────────────────────────
+  dangerLabel: {
+    fontSize: 10, fontWeight: '700',
+    color: colors.accent, letterSpacing: 0.1,
+    marginBottom: 8,
+  },
+  dangerCard: {
+    borderWidth: 1, borderColor: `${colors.accent}40`,
+    borderRadius: radius.lg, overflow: 'hidden',
+    backgroundColor: `${colors.accent}08`,
+  },
+  dangerInfo: {
+    flexDirection: 'row', gap: 12, alignItems: 'flex-start',
+    padding: 16,
+    borderBottomWidth: 1, borderBottomColor: `${colors.accent}25`,
+  },
+  dangerTitle: { fontSize: 14, fontWeight: '600', color: colors.accent, marginBottom: 4 },
+  dangerDesc: { fontSize: 12, color: colors.inkMuted, lineHeight: 17 },
+  deleteBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    padding: 14, backgroundColor: colors.accent,
+  },
+  deleteBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 })

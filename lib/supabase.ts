@@ -4,9 +4,6 @@ import { createClient } from '@supabase/supabase-js'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import Constants from 'expo-constants'
 
-// Las variables EXPO_PUBLIC_* se leen de dos fuentes:
-// 1. process.env — funciona en desarrollo con .env local
-// 2. Constants.expoConfig?.extra — funciona en builds de EAS
 const supabaseUrl =
   process.env.EXPO_PUBLIC_SUPABASE_URL ??
   (Constants.expoConfig?.extra as any)?.supabaseUrl ?? ''
@@ -36,12 +33,18 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export type UserRole = 'owner' | 'manager' | 'cashier'
 export type PaymentMethod = 'cash' | 'card' | 'transfer'
 export type DateFilter = 'day' | 'week' | 'month' | 'year'
+export type SubscriptionStatus = 'free' | 'trial' | 'pro' | 'gifted' // ← NUEVO
 
 export interface Store {
   id: string
   name: string
   address: string | null
   phone: string | null
+  // ─── Suscripción ───────────────────────────────────────────
+  subscription_status: SubscriptionStatus
+  subscription_expires_at: string | null
+  trial_started_at: string | null
+  revenuecat_app_user_id: string | null
 }
 
 export interface Profile {
@@ -114,6 +117,4 @@ export interface StoreInvitation {
   expires_at: string
 }
 
-export interface TeamMember extends Profile {
-  // Profile ya tiene id, email, full_name, role, store_id, avatar_url
-}
+export interface TeamMember extends Profile {}

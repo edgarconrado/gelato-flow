@@ -13,6 +13,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useExpenses, CATEGORY_INFO, ExpenseCategory, Expense } from '../../hooks/useExpenses'
 import { colors, radius, shadow } from '../../constants/theme'
+import { ProGate, TrialBanner } from '../../components/ProGate'
 
 const FILTERS = [
     { value: 'day', label: 'Hoy' },
@@ -47,150 +48,153 @@ export default function GastosScreen() {
     }
 
     return (
-        <SafeAreaView style={s.safe}>
+        <ProGate feature="Módulo de Gastos">
+            <SafeAreaView style={s.safe}>
+                <TrialBanner />
 
-            {/* Header */}
-            <View style={s.header}>
-                <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-                    <Ionicons name="chevron-back" size={22} color="rgba(255,255,255,0.7)" />
-                </TouchableOpacity>
-                <View style={{ flex: 1 }}>
-                    <Text style={s.title}>Gastos</Text>
-                    <Text style={s.subtitle}>{profile?.store?.name ?? '—'}</Text>
+                {/* Header */}
+                <View style={s.header}>
+                    <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+                        <Ionicons name="chevron-back" size={22} color="rgba(255,255,255,0.7)" />
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                        <Text style={s.title}>Gastos</Text>
+                        <Text style={s.subtitle}>{profile?.store?.name ?? '—'}</Text>
+                    </View>
+                    {isOwner && (
+                        <TouchableOpacity style={s.addBtn} onPress={() => setShowForm(true)} activeOpacity={0.85}>
+                            <Ionicons name="add" size={18} color={colors.ink} />
+                            <Text style={s.addBtnText}>Agregar</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
-                {isOwner && (
-                    <TouchableOpacity style={s.addBtn} onPress={() => setShowForm(true)} activeOpacity={0.85}>
-                        <Ionicons name="add" size={18} color={colors.ink} />
-                        <Text style={s.addBtnText}>Agregar</Text>
-                    </TouchableOpacity>
-                )}
-            </View>
 
-            {/* Filtros */}
-            <View style={s.filterRow}>
-                {FILTERS.map(f => (
-                    <TouchableOpacity
-                        key={f.value}
-                        style={[s.pill, filter === f.value && s.pillActive]}
-                        onPress={() => setFilter(f.value)}
-                    >
-                        <Text style={[s.pillText, filter === f.value && s.pillTextActive]}>{f.label}</Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
+                {/* Filtros */}
+                <View style={s.filterRow}>
+                    {FILTERS.map(f => (
+                        <TouchableOpacity
+                            key={f.value}
+                            style={[s.pill, filter === f.value && s.pillActive]}
+                            onPress={() => setFilter(f.value)}
+                        >
+                            <Text style={[s.pillText, filter === f.value && s.pillTextActive]}>{f.label}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
 
-            {loading ? (
-                <View style={s.center}><ActivityIndicator color={colors.primary} /></View>
-            ) : (
-                <FlatList
-                    data={expenses}
-                    keyExtractor={e => e.id}
-                    contentContainerStyle={s.list}
-                    refreshing={loading}
-                    onRefresh={fetch}
-                    ListHeaderComponent={
-                        <>
-                            {/* Total del período */}
-                            <View style={s.totalCard}>
-                                <View>
-                                    <Text style={s.totalLabel}>TOTAL GASTOS</Text>
-                                    <Text style={s.totalAmount}>${total.toFixed(2)}</Text>
-                                    <Text style={s.totalSub}>{expenses.length} registro{expenses.length !== 1 ? 's' : ''}</Text>
-                                </View>
-                                <View style={s.totalIcon}>
-                                    <Ionicons name="trending-down" size={28} color={colors.accent} />
-                                </View>
-                            </View>
-
-                            {/* Por categoría */}
-                            {byCategory.length > 0 && (
-                                <View style={[s.card, { marginBottom: 8 }]}>
-                                    <Text style={s.sectionTitle}>Por categoría</Text>
-                                    {byCategory.map((c, i) => {
-                                        const info = CATEGORY_INFO[c.category]
-                                        const pct = total > 0 ? (c.total / total) * 100 : 0
-                                        return (
-                                            <View key={c.category} style={[s.catRow, i > 0 && s.catRowBorder]}>
-                                                <Text style={{ fontSize: 20, width: 28 }}>{info.emoji}</Text>
-                                                <View style={{ flex: 1 }}>
-                                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                                                        <Text style={s.catLabel}>{info.label}</Text>
-                                                        <Text style={s.catAmount}>${c.total.toFixed(2)}</Text>
-                                                    </View>
-                                                    <View style={s.barWrap}>
-                                                        <View style={[s.barFill, { width: `${pct}%`, backgroundColor: info.color }]} />
-                                                    </View>
-                                                </View>
-                                                <Text style={s.catPct}>{pct.toFixed(0)}%</Text>
-                                            </View>
-                                        )
-                                    })}
-                                </View>
-                            )}
-
-                            {expenses.length > 0 && (
-                                <Text style={[s.sectionTitle, { marginBottom: 8, paddingHorizontal: 4 }]}>
-                                    Historial
-                                </Text>
-                            )}
-                        </>
-                    }
-                    renderItem={({ item }) => {
-                        const info = CATEGORY_INFO[item.category]
-                        return (
-                            <View style={s.expenseCard}>
-                                <View style={[s.expenseEmoji, { backgroundColor: `${info.color}18` }]}>
-                                    <Text style={{ fontSize: 20 }}>{info.emoji}</Text>
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={s.expenseDesc} numberOfLines={1}>{item.description}</Text>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 }}>
-                                        <View style={[s.catBadge, { backgroundColor: `${info.color}18` }]}>
-                                            <Text style={[s.catBadgeText, { color: info.color }]}>{info.label}</Text>
-                                        </View>
-                                        <Text style={s.expenseDate}>
-                                            {format(new Date(item.date + 'T12:00:00'), "d 'de' MMM", { locale: es })}
-                                        </Text>
+                {loading ? (
+                    <View style={s.center}><ActivityIndicator color={colors.primary} /></View>
+                ) : (
+                    <FlatList
+                        data={expenses}
+                        keyExtractor={e => e.id}
+                        contentContainerStyle={s.list}
+                        refreshing={loading}
+                        onRefresh={fetch}
+                        ListHeaderComponent={
+                            <>
+                                {/* Total del período */}
+                                <View style={s.totalCard}>
+                                    <View>
+                                        <Text style={s.totalLabel}>TOTAL GASTOS</Text>
+                                        <Text style={s.totalAmount}>${total.toFixed(2)}</Text>
+                                        <Text style={s.totalSub}>{expenses.length} registro{expenses.length !== 1 ? 's' : ''}</Text>
+                                    </View>
+                                    <View style={s.totalIcon}>
+                                        <Ionicons name="trending-down" size={28} color={colors.accent} />
                                     </View>
                                 </View>
-                                <Text style={s.expenseAmount}>−${item.amount.toFixed(2)}</Text>
-                                {isOwner && (
-                                    <TouchableOpacity
-                                        onPress={() => handleDelete(item)}
-                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                        style={{ marginLeft: 4 }}
-                                    >
-                                        <Ionicons name="trash-outline" size={16} color={colors.accent} />
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        )
-                    }}
-                    ListEmptyComponent={
-                        <View style={s.center}>
-                            <Text style={{ fontSize: 48, marginBottom: 12 }}>💸</Text>
-                            <Text style={s.emptyTitle}>Sin gastos registrados</Text>
-                            <Text style={s.emptyDesc}>
-                                {isOwner
-                                    ? 'Toca "Agregar" para registrar el primer gasto del período.'
-                                    : 'El propietario aún no ha registrado gastos.'}
-                            </Text>
-                        </View>
-                    }
-                />
-            )}
 
-            {/* Modal agregar gasto */}
-            {isOwner && (
-                <AddExpenseModal
-                    visible={showForm}
-                    onClose={() => setShowForm(false)}
-                    onSaved={() => { setShowForm(false); fetch() }}
-                    storeId={profile!.store_id}
-                    userId={profile!.id}
-                />
-            )}
-        </SafeAreaView>
+                                {/* Por categoría */}
+                                {byCategory.length > 0 && (
+                                    <View style={[s.card, { marginBottom: 8 }]}>
+                                        <Text style={s.sectionTitle}>Por categoría</Text>
+                                        {byCategory.map((c, i) => {
+                                            const info = CATEGORY_INFO[c.category]
+                                            const pct = total > 0 ? (c.total / total) * 100 : 0
+                                            return (
+                                                <View key={c.category} style={[s.catRow, i > 0 && s.catRowBorder]}>
+                                                    <Text style={{ fontSize: 20, width: 28 }}>{info.emoji}</Text>
+                                                    <View style={{ flex: 1 }}>
+                                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                            <Text style={s.catLabel}>{info.label}</Text>
+                                                            <Text style={s.catAmount}>${c.total.toFixed(2)}</Text>
+                                                        </View>
+                                                        <View style={s.barWrap}>
+                                                            <View style={[s.barFill, { width: `${pct}%`, backgroundColor: info.color }]} />
+                                                        </View>
+                                                    </View>
+                                                    <Text style={s.catPct}>{pct.toFixed(0)}%</Text>
+                                                </View>
+                                            )
+                                        })}
+                                    </View>
+                                )}
+
+                                {expenses.length > 0 && (
+                                    <Text style={[s.sectionTitle, { marginBottom: 8, paddingHorizontal: 4 }]}>
+                                        Historial
+                                    </Text>
+                                )}
+                            </>
+                        }
+                        renderItem={({ item }) => {
+                            const info = CATEGORY_INFO[item.category]
+                            return (
+                                <View style={s.expenseCard}>
+                                    <View style={[s.expenseEmoji, { backgroundColor: `${info.color}18` }]}>
+                                        <Text style={{ fontSize: 20 }}>{info.emoji}</Text>
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.expenseDesc} numberOfLines={1}>{item.description}</Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 }}>
+                                            <View style={[s.catBadge, { backgroundColor: `${info.color}18` }]}>
+                                                <Text style={[s.catBadgeText, { color: info.color }]}>{info.label}</Text>
+                                            </View>
+                                            <Text style={s.expenseDate}>
+                                                {format(new Date(item.date + 'T12:00:00'), "d 'de' MMM", { locale: es })}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    <Text style={s.expenseAmount}>−${item.amount.toFixed(2)}</Text>
+                                    {isOwner && (
+                                        <TouchableOpacity
+                                            onPress={() => handleDelete(item)}
+                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                            style={{ marginLeft: 4 }}
+                                        >
+                                            <Ionicons name="trash-outline" size={16} color={colors.accent} />
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            )
+                        }}
+                        ListEmptyComponent={
+                            <View style={s.center}>
+                                <Text style={{ fontSize: 48, marginBottom: 12 }}>💸</Text>
+                                <Text style={s.emptyTitle}>Sin gastos registrados</Text>
+                                <Text style={s.emptyDesc}>
+                                    {isOwner
+                                        ? 'Toca "Agregar" para registrar el primer gasto del período.'
+                                        : 'El propietario aún no ha registrado gastos.'}
+                                </Text>
+                            </View>
+                        }
+                    />
+                )}
+
+                {/* Modal agregar gasto */}
+                {isOwner && (
+                    <AddExpenseModal
+                        visible={showForm}
+                        onClose={() => setShowForm(false)}
+                        onSaved={() => { setShowForm(false); fetch() }}
+                        storeId={profile!.store_id}
+                        userId={profile!.id}
+                    />
+                )}
+            </SafeAreaView>
+        </ProGate>
     )
 }
 
