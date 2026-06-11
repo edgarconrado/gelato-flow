@@ -1,8 +1,17 @@
 // hooks/useSubscription.ts
 // Verifica si la tienda tiene acceso Pro combinando RevenueCat + Supabase
 import { useEffect, useState, useCallback } from 'react'
+import { Platform } from 'react-native'
 import { supabase, SubscriptionStatus } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import Constants from 'expo-constants'
+
+const extra = Constants.expoConfig?.extra as any
+
+// iOS/desarrollo → Test Store key | Android → Google Play key
+const RC_API_KEY = Platform.OS === 'android'
+  ? extra?.revenueCatAndroidKey ?? ''
+  : extra?.revenueCatApiKey ?? ''
 
 export interface SubscriptionInfo {
   isPro: boolean
@@ -34,7 +43,6 @@ export function useSubscription(): SubscriptionInfo {
       let rcIsPro = false
       try {
         const Purchases = (await import('react-native-purchases')).default
-        const RC_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY ?? ''
         if (RC_API_KEY) {
           await Purchases.configure({ apiKey: RC_API_KEY, appUserID: profile.store_id })
           const customerInfo = await Purchases.getCustomerInfo()
