@@ -12,12 +12,14 @@ import { useAuth } from '../../context/AuthContext'
 import { useCategories } from '../../hooks/useData'
 import { notify } from '../../hooks/useNotifications'
 import { colors, radius } from '../../constants/theme'
+import { useIsPro } from '../../context/SubscriptionContext'
 
 export default function ProductFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>()
   const isEditing = !!id
   const router = useRouter()
   const { profile } = useAuth()
+  const isPro = useIsPro()
   const { categories, loading: loadingCats } = useCategories()
 
   const [name, setName] = useState('')
@@ -55,12 +57,19 @@ export default function ProductFormScreen() {
 
   // ── Seleccionar y subir imagen ─────────────────────────────
   const handlePickImage = async () => {
+    if (!isPro) {
+      Alert.alert(
+        '🔒 Función Pro',
+        'Agregar fotos a productos está disponible en GelatoFlow Pro.',
+        [
+          { text: 'Ahora no', style: 'cancel' },
+          { text: 'Ver planes Pro', onPress: () => router.push('/paywall') },
+        ]
+      )
+      return
+    }
     try {
-      // Import dinámico para evitar crash si el módulo no está disponible
       const ImagePicker = await import('expo-image-picker')
-
-      // Photo Picker en Android 13+ no requiere permiso explícito
-      // requestMediaLibraryPermissionsAsync retorna 'granted' automáticamente
       await ImagePicker.requestMediaLibraryPermissionsAsync()
 
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -141,12 +150,33 @@ export default function ProductFormScreen() {
 
     const { error } = isEditing
       ? await supabase.from('products').update(payload).eq('id', id)
-      : await supabase.from('products').insert(payload)
+      : await (async () => {
+        if (!isPro) {
+          const { count } = await supabase
+            .from('products')
+            .select('*', { count: 'exact', head: true })
+            .eq('store_id', profile!.store_id)
+            .eq('active', true)
+          if ((count ?? 0) >= 20) {
+            setLoading(false)
+            Alert.alert(
+              '🔒 Límite alcanzado',
+              'El plan gratuito permite hasta 20 productos activos. Actualiza a Pro para agregar ilimitados.',
+              [
+                { text: 'Ahora no', style: 'cancel' },
+                { text: 'Ver planes Pro', onPress: () => router.push('/paywall') },
+              ]
+            )
+            return { error: { message: 'limit' } }
+          }
+        }
+        return supabase.from('products').insert(payload)
+      })()
 
     setLoading(false)
 
     if (error) {
-      Alert.alert('Error', error.message)
+      if (error.message !== 'limit') Alert.alert('Error', error.message)
     } else {
       notify(
         isEditing ? 'Producto actualizado' : 'Producto creado',
@@ -222,16 +252,23 @@ export default function ProductFormScreen() {
               <View style={s.imagePlaceholder}>
                 {uploading ? (
                   <ActivityIndicator color={colors.primary} />
-                ) : (
+                ) : isPro ? (
                   <>
                     <Ionicons name="camera-outline" size={28} color={colors.inkMuted} />
                     <Text style={s.imagePlaceholderText}>Agregar foto</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="lock-closed-outline" size={28} color={colors.inkMuted} />
+                    <Text style={s.imagePlaceholderText}>Solo en Pro</Text>
                   </>
                 )}
               </View>
             )}
           </TouchableOpacity>
-          <Text style={s.imageHint}>Opcional · cuadrada, máx 3MB</Text>
+          <Text style={s.imageHint}>
+            {isPro ? 'Opcional · cuadrada, máx 3MB' : 'Fotos disponibles en Pro'}
+          </Text>
         </View>
 
         {/* ── Nombre ───────────────────────────────────────── */}
@@ -353,7 +390,6 @@ const s = StyleSheet.create({
   toolbarTitle: { fontSize: 17, fontWeight: '600', color: '#fff', letterSpacing: -0.3 },
   body: { padding: 24, gap: 4 },
 
-  // Imagen
   imageSection: { alignItems: 'center', marginBottom: 8 },
   imageWrap: {
     width: IMAGE_SIZE, height: IMAGE_SIZE,
@@ -388,7 +424,6 @@ const s = StyleSheet.create({
   },
   imageHint: { fontSize: 11, color: colors.inkMuted, marginTop: 8 },
 
-  // Form
   label: { fontSize: 12, fontWeight: '500', color: colors.inkMuted, marginTop: 16, marginBottom: 6 },
   labelHint: { fontSize: 11, color: colors.inkMuted, marginTop: 2 },
   input: {

@@ -40,21 +40,18 @@ export function useRealtime(subscriptions: RealtimeSubscription[]) {
                     filter: `store_id=eq.${storeId}`,
                 },
                 (payload: any) => {
-                    console.log(`[Realtime] ${table} ${payload.eventType}`)
                     onchange(payload)
                 }
             )
         })
 
         channel.subscribe((status) => {
-            console.log('[Realtime] Status:', status)
         })
 
         channelRef.current = channel
 
         // Cleanup al desmontar — evita memory leaks y consumo de batería
         return () => {
-            console.log('[Realtime] Unsubscribing channel:', channelName)
             supabase.removeChannel(channel)
         }
     }, [storeId]) // Solo re-suscribir si cambia la tienda

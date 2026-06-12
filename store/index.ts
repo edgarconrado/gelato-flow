@@ -53,10 +53,13 @@ export const useCartStore = create<CartState>((set, get) => ({
     const { items, total, clearCart } = get()
     if (items.length === 0) return { error: 'El carrito está vacío', saleId: null }
 
+    // Guardar el total ANTES de limpiar el carrito
+    const saleTotal = total()
+
     // 1. Registrar venta
     const { data: sale, error: saleError } = await supabase
       .from('sales')
-      .insert({ store_id: storeId, cashier_id: cashierId, total: total(), payment_method: paymentMethod })
+      .insert({ store_id: storeId, cashier_id: cashierId, total: saleTotal, payment_method: paymentMethod })
       .select()
       .single()
 
@@ -112,7 +115,7 @@ export const useCartStore = create<CartState>((set, get) => ({
     // 4. Notificación de venta exitosa
     notify(
       '¡Venta registrada!',
-      `+$${total().toFixed(2)} — Folio ${sale.id.slice(0, 8).toUpperCase()}`,
+      `+$${saleTotal.toFixed(2)} — Folio ${sale.id.slice(0, 8).toUpperCase()}`,
       'success'
     )
 

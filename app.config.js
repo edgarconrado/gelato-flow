@@ -3,7 +3,7 @@ export default {
   expo: {
     name: 'Gelato Flow',
     slug: 'gelato-flow-app',
-    version: '1.0.1r03',
+    version: '1.1.0r03',
     icon: './assets/icon.png',
     splash: {
       image: './assets/splash.png',
@@ -24,7 +24,7 @@ export default {
     },
     android: {
       package: 'com.jacarandalab.gelatoflow',
-      versionCode: 4,
+      versionCode: 7,
       edgeToEdgeEnabled: true,
       permissions: [
         // READ_MEDIA_IMAGES removido — usamos Photo Picker (no requiere permiso)
@@ -60,6 +60,9 @@ export default {
     extra: {
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+      createStoreSecret: process.env.EXPO_PUBLIC_CREATE_STORE_SECRET ?? 'gelato_create_store_2026',
+      revenueCatApiKey: 'test_xrWqYOUIamZzVVLLYodveSaHACO',
+      revenueCatAndroidKey: 'goog_sVOLrQWgVPtDgcuoEVwNJHZFEyT',
       eas: {
         projectId: '34e3d317-1a87-43a0-a9ef-1c4ec47d36d5',
       },
