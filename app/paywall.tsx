@@ -170,13 +170,6 @@ export default function PaywallScreen() {
                                         onPress={() => setSelected(pkg)}
                                         activeOpacity={0.85}
                                     >
-                                        {/* Badge de ahorro */}
-                                        {isYearly && savingsPct && savingsPct > 0 && (
-                                            <View style={s.savingsBadge}>
-                                                <Text style={s.savingsBadgeText}>Ahorra {savingsPct}%</Text>
-                                            </View>
-                                        )}
-
                                         <View style={s.planRow}>
                                             {/* Radio */}
                                             <View style={[s.radio, isSelected && s.radioSelected]}>
