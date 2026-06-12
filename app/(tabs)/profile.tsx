@@ -440,6 +440,17 @@ export default function ProfileScreen() {
         </View>
 
         <View style={{ height: 20 }} />
+
+        {/* ── Versión de la app ─────────────────────────────── */}
+        <View style={s.versionWrap}>
+          <Text style={s.versionText}>
+            GelatoFlow · v{Constants.expoConfig?.version ?? '1.0.0'}
+          </Text>
+          <Text style={s.versionSubtext}>
+            Jacaranda Lab © {new Date().getFullYear()}
+          </Text>
+        </View>
+
       </ScrollView>
     </SafeAreaView>
   )
@@ -664,4 +675,19 @@ const s = StyleSheet.create({
     padding: 14, backgroundColor: colors.accent,
   },
   deleteBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  // ── Versión ───────────────────────────────────────────────────
+  versionWrap: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    gap: 4,
+  },
+  versionText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.2)',
+    fontWeight: '500',
+  },
+  versionSubtext: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.12)',
+  },
 })

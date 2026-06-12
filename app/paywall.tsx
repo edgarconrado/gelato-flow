@@ -197,8 +197,13 @@ export default function PaywallScreen() {
                                                 )}
                                             </View>
 
-                                            {/* Precio */}
-                                            <View style={{ alignItems: 'flex-end' }}>
+                                            {/* Precio + badge */}
+                                            <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                                                {isYearly && savingsPct && savingsPct > 0 && (
+                                                    <View style={s.savingsBadge}>
+                                                        <Text style={s.savingsBadgeText}>Ahorra {savingsPct}%</Text>
+                                                    </View>
+                                                )}
                                                 <Text style={[s.planPrice, isSelected && s.planPriceSelected]}>
                                                     {pkg.product.priceString}
                                                 </Text>
@@ -352,7 +357,6 @@ const s = StyleSheet.create({
     planPriceSelected: { color: colors.primary },
     planPeriod: { fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 1 },
     savingsBadge: {
-        position: 'absolute', top: 10, right: 10,
         backgroundColor: colors.primary,
         paddingHorizontal: 8, paddingVertical: 3,
         borderRadius: radius.pill,
