@@ -12,12 +12,23 @@ const { width } = Dimensions.get('window')
 
 interface Props {
     onReady: () => void
+    authReady: boolean  // ← nuevo: indica cuando el auth terminó
 }
 
-export function AnimatedSplash({ onReady }: Props) {
+export function AnimatedSplash({ onReady, authReady }: Props) {
     const opacity = useRef(new Animated.Value(0)).current
     const scale = useRef(new Animated.Value(0.85)).current
     const exitOpacity = useRef(new Animated.Value(1)).current
+    const animationDone = useRef(false)
+    const canClose = useRef(false)
+
+    const tryClose = () => {
+        // Solo cerrar cuando AMBOS están listos: animación Y auth
+        if (!animationDone.current || !canClose.current) return
+        Animated.timing(exitOpacity, {
+            toValue: 0, duration: 350, useNativeDriver: true,
+        }).start(() => onReady())
+    }
 
     useEffect(() => {
         SplashScreen.hideAsync()
@@ -31,14 +42,21 @@ export function AnimatedSplash({ onReady }: Props) {
                 toValue: 1, tension: 40, friction: 8, useNativeDriver: true,
             }),
         ]).start(() => {
+            // Mínimo 900ms de splash para que no sea un flash
             setTimeout(() => {
-                // Salida: fade out suave
-                Animated.timing(exitOpacity, {
-                    toValue: 0, duration: 350, useNativeDriver: true,
-                }).start(() => onReady())
+                animationDone.current = true
+                tryClose()
             }, 900)
         })
     }, [])
+
+    // Cuando auth termine, intentar cerrar
+    useEffect(() => {
+        if (authReady) {
+            canClose.current = true
+            tryClose()
+        }
+    }, [authReady])
 
     return (
         <Animated.View style={[s.container, { opacity: exitOpacity }]}>

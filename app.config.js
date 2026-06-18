@@ -3,7 +3,7 @@ export default {
   expo: {
     name: 'Gelato Flow',
     slug: 'gelato-flow-app',
-    version: '1.1.0r03',
+    version: '1.1.0r04',
     icon: './assets/icon.png',
     splash: {
       image: './assets/splash.png',
@@ -24,7 +24,7 @@ export default {
     },
     android: {
       package: 'com.jacarandalab.gelatoflow',
-      versionCode: 7,
+      versionCode: 8,
       edgeToEdgeEnabled: true,
       permissions: [
         // READ_MEDIA_IMAGES removido — usamos Photo Picker (no requiere permiso)

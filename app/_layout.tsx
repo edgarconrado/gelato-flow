@@ -52,9 +52,10 @@ function RootGuard() {
         <Stack.Screen name="gastos/index" options={{ headerShown: false }} />
       </Stack>
 
-      {/* Splash animado encima de todo — desaparece cuando auth termina de cargar */}
+      {/* Splash animado — espera a que el auth termine antes de cerrarse */}
       {!splashDone && (
         <AnimatedSplash
+          authReady={!loading}
           onReady={() => setSplashDone(true)}
         />
       )}

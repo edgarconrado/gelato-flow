@@ -23,42 +23,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true)
 
     const fetchProfile = useCallback(async (userId: string) => {
-        // 1. Cargar perfil sin join para evitar problemas de RLS en stores
-        const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('id, email, full_name, role, store_id, avatar_url')
-            .eq('id', userId)
-            .maybeSingle()
+        // Timeout de seguridad — si tarda más de 8 segundos, liberar loading
+        const timeout = setTimeout(() => {
+            console.warn('[AuthContext] fetchProfile timeout — liberando loading')
+            setLoading(false)
+        }, 8000)
 
-        if (profileError) {
-            console.error('[AuthContext] Error al cargar perfil:', profileError.message)
-            setProfile(null)
-            return
-        }
-        if (!profileData) {
-            console.warn('[AuthContext] Sin perfil para userId:', userId)
-            setProfile(null)
-            return
-        }
-
-        // 2. Cargar tienda por separado usando store_id
-        let store = null
-        if (profileData.store_id) {
-            const { data: storeData, error: storeError } = await supabase
-                .from('stores')
-                .select('id, name, address, phone, subscription_status, subscription_expires_at, trial_started_at, revenuecat_app_user_id')
-                .eq('id', profileData.store_id)
+        try {
+            // 1. Cargar perfil sin join para evitar problemas de RLS en stores
+            const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('id, email, full_name, role, store_id, avatar_url')
+                .eq('id', userId)
                 .maybeSingle()
 
-            if (storeError) {
-                console.warn('[AuthContext] Error al cargar store:', storeError.message)
-            } else {
-                store = storeData
+            if (profileError) {
+                console.error('[AuthContext] Error al cargar perfil:', profileError.message)
+                setProfile(null)
+                return
             }
-        }
+            if (!profileData) {
+                console.warn('[AuthContext] Sin perfil para userId:', userId)
+                setProfile(null)
+                return
+            }
 
-        console.log('[AuthContext] Profile:', profileData.email, '| Store:', store?.name ?? 'null')
-        setProfile({ ...profileData, store } as Profile)
+            // Mostrar perfil sin store mientras carga la tienda
+            setProfile({ ...profileData, store: undefined } as Profile)
+
+            // 2. Cargar tienda por separado usando store_id
+            let store = null
+            if (profileData.store_id) {
+                const { data: storeData, error: storeError } = await supabase
+                    .from('stores')
+                    .select('id, name, address, phone, subscription_status, subscription_expires_at, trial_started_at, revenuecat_app_user_id')
+                    .eq('id', profileData.store_id)
+                    .maybeSingle()
+
+                if (storeError) {
+                    console.warn('[AuthContext] Error al cargar store:', storeError.message)
+                } else {
+                    store = storeData
+                }
+            }
+
+            console.log('[AuthContext] Profile:', profileData.email, '| Store:', store?.name ?? 'null')
+            setProfile({ ...profileData, store } as Profile)
+        } finally {
+            clearTimeout(timeout)
+        }
     }, [])
 
     const refreshProfile = useCallback(async () => {

@@ -441,7 +441,7 @@ export default function ProfileScreen() {
 
         <View style={{ height: 20 }} />
 
-        {/* ── Versión de la app ─────────────────────────────── */}
+        {/* ── Versión ───────────────────────────────────────── */}
         <View style={s.versionWrap}>
           <Text style={s.versionText}>
             GelatoFlow · v{Constants.expoConfig?.version ?? '1.0.0'}
@@ -507,7 +507,7 @@ const AV = 84
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  scroll: { paddingBottom: 20 },
+  scroll: { paddingBottom: 120 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   hero: {
@@ -675,19 +675,21 @@ const s = StyleSheet.create({
     padding: 14, backgroundColor: colors.accent,
   },
   deleteBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
   // ── Versión ───────────────────────────────────────────────────
   versionWrap: {
-    alignItems: 'center',
+    alignItems: 'center' as const,
     paddingVertical: 20,
     gap: 4,
   },
   versionText: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.2)',
-    fontWeight: '500',
+    color: colors.inkMuted,  // ← cambia esto
+    fontWeight: '500' as const,
   },
   versionSubtext: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.12)',
+    color: colors.inkMuted,  // ← cambia esto
+    opacity: 0.6,
   },
 })
